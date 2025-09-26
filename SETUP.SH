@@ -17,6 +17,8 @@ Description:
 
 Options:
   -i, --install   インストールモードで実行します。
+                  まず、ディレクトリから削除されたスクリプトに対応する古いリンクを掃除してから、
+                  現在のスクリプトのシンボリックリンクを作成・更新します。
                   シンボリックリンクは 'Koa_' という接頭辞付きで作成されます。
                   例: 'myscript.sh' -> '/usr/local/bin/Koa_myscript.sh'
 
@@ -50,7 +52,47 @@ script_dir=$(dirname "$(readlink -f "$0")")
 
 # --- インストール処理 ---
 install_links() {
-    echo "以下のスクリプトのシンボリックリンクを /usr/local/bin に作成します..."
+    # --- クリーンアップ処理 ---
+    echo "最初に、管理下から削除されたスクリプトの古いリンクをクリーンアップします..."
+    cleaned_count=0
+    # 現在のスクリプトのリストを連想配列に格納
+    declare -A current_scripts
+    for file in "$script_dir"/*.sh; do
+        [ -f "$file" ] || continue
+        current_scripts["$(basename "$file")"]=1
+    done
+
+    # /usr/local/bin にある Koa_* リンクをチェック
+    for linkpath in /usr/local/bin/Koa_*.sh; do
+        [ -L "$linkpath" ] || continue # シンボリックリンクでなければスキップ
+
+        # リンクのターゲットがこのスクリプトの管理下にあるか確認
+        if [[ "$(readlink -f "$linkpath")" == "$script_dir"/* ]]; then
+            linkname=$(basename "$linkpath")
+            sourcename=${linkname#Koa_}
+            # 元のファイルが現在のスクリプトリストに存在しないなら、孤立リンクと判断
+            if [[ ! -v current_scripts["$sourcename"] ]]; then
+                echo "孤立したリンクを削除中: $linkname"
+                if rm -v "$linkpath"; then
+                    echo " -> 削除しました。"
+                    ((cleaned_count++))
+                else
+                    echo " -> エラー: 削除に失敗しました。" >&2
+                fi
+            fi
+        fi
+    done
+
+    if [ $cleaned_count -gt 0 ]; then
+        echo "クリーンアップが完了しました。"
+    else
+        echo "クリーンアップ対象の古いリンクはありませんでした。"
+    fi
+    echo "--------------------------------------------------"
+    echo ""
+
+    # --- インストール本体 ---
+    echo "以下のスクリプトのシンボリックリンクを /usr/local/bin に作成・更新します..."
     echo "(対象ディレクトリ: $script_dir)"
     echo "(接頭辞 'Koa_' が付きます)"
     echo "--------------------------------------------------"
@@ -73,10 +115,10 @@ install_links() {
         # 実行権限を付与
         chmod +x "$file"
 
-        # /usr/local/bin にシンボリックリンクを作成
+        # /usr/local/bin にシンボリックリンクを作成（-f で上書き）
         # $file には既に絶対パスが入っている
         if ln -svf "$file" "/usr/local/bin/$linkname"; then
-            echo " -> '$linkname' のシンボリックリンクを作成しました。"
+            echo " -> '$linkname' のシンボリックリンクを作成・更新しました。"
         else
             echo " -> エラー: '$linkname' のシンボリックリンク作成に失敗しました。" >&2
         fi
