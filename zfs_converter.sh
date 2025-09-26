@@ -72,7 +72,12 @@ if [ "$#" -ne 3 ]; then
 fi
 
 # 変数定義
-TARGET_DIR="$1"; ZFS_DATASET="$2"; COMPRESSION_SETTING="$3"; TEMP_DIR="${TARGET_DIR}_zfs_temp_$$"
+# ★★★ ここを修正したのじゃ ★★★
+TARGET_DIR=$(readlink -f "$1")
+# ★★★★★★★★★★★★★★★★★★★
+ZFS_DATASET="$2"
+COMPRESSION_SETTING="$3"
+TEMP_DIR="${TARGET_DIR}_zfs_temp_$$"
 
 # 事前チェック
 if [ "$(id -u)" -ne 0 ]; then
