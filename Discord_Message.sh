@@ -1,7 +1,15 @@
 #!/bin/bash
 
-# このスクリプトが置かれているディレクトリの絶対パスを取得するおまじないじゃ
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# シンボリックリンクを解決して、このスクリプトの実体があるディレクトリの絶対パスを取得するのじゃ
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # -h オプションでシンボリックリンクをチェックじゃ
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  # リンク先が相対パスじゃったら、解決済みのディレクトリと結合するのじゃ
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+
 ENV_FILE="$SCRIPT_DIR/.env"
 
 # 通常のヘルプメッセージを表示する関数
