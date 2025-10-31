@@ -6,17 +6,17 @@
 
 # ヘルプ表示用の関数
 show_help() {
-cat << EOF
+    cat <<EOF
 使用法: ./capture.sh [オプション]
 対話的にキャプチャデバイス、フォーマット、コーデックを選択して録画を開始するスクリプト。
 安定性を重視し、高速なCPUエンコードを使用します。
 
 動作モード:
- 1. 録画のみ: ファイルに映像を録画します。
- 2. プレビューのみ: 録画せず、映像を表示するだけです。
+    1. 録画のみ: ファイルに映像を録画します。
+    2. プレビューのみ: 録画せず、映像を表示するだけです。
 
 オプション:
-  -h, --help    このヘルプメッセージを表示します。
+    -h, --help    このヘルプメッセージを表示します。
 EOF
 }
 
@@ -80,7 +80,6 @@ for device_path in "${VIDEO_DEVICE_PATHS[@]}"; do
     done < <(LC_ALL=C v4l2-ctl -d "$device_path" --list-formats-ext | awk "$AWK_PARSER_SCRIPT" | sort -t'|' -k2,2Vr -k1,1 -k3,3nr)
 done
 
-
 if [ ${#CAPTURE_MODES[@]} -eq 0 ]; then
     echo "致命的エラー: 映像デバイスの性能を読み取れんかった。すまぬが、わっちの力ではここまでじゃ..."
     exit 1
@@ -93,7 +92,7 @@ select mode_choice in "${CAPTURE_MODES[@]}"; do
         VIDEO_SIZE=$(echo "$mode_choice" | awk -F'- ' '{print $2}' | awk '{print $1}')
         INPUT_FORMAT_CODE=$(echo "$mode_choice" | awk -F'- ' '{print $2}' | awk '{print $2}')
         FRAMERATE=$(echo "$mode_choice" | grep -oP '@ \K[0-9.]+')
-        
+
         if [ "$INPUT_FORMAT_CODE" == "YUYV" ]; then
             INPUT_FORMAT_FFMPEG="yuyv422"
         elif [ "$INPUT_FORMAT_CODE" == "MJPG" ]; then
@@ -101,7 +100,7 @@ select mode_choice in "${CAPTURE_MODES[@]}"; do
         else
             INPUT_FORMAT_FFMPEG="mjpeg"
         fi
-        
+
         echo "» ${mode_choice} を選んだのじゃな。"
         break
     else
@@ -144,17 +143,22 @@ if [ "$OPERATION_MODE" -ne 2 ]; then
     declare -a VIDEO_CODEC_OPTS
     select vcodec_choice in "${VIDEO_CODECS[@]}"; do
         case $REPLY in
-            1)
-                echo "» 信頼性重視！ CPU超高速エンコード(libx264)を選ぶぞ。"
-                VIDEO_CODEC_OPTS=("-c:v" "libx264" "-preset" "ultrafast" "-crf" "20" "-pix_fmt" "yuv420p")
-                break;;
-            2)
-                echo "» AV1じゃな。新しいコーデックじゃが、負荷は高めじゃぞ。"
-                VIDEO_CODEC_OPTS=("-c:v" "libsvtav1" "-preset" "8" "-crf" "25" "-pix_fmt" "yuv420p"); break;;
-            3)
-                echo "» VP9じゃな。YouTubeが得意なやつじゃ。"
-                VIDEO_CODEC_OPTS=("-c:v" "libvpx-vp9" "-deadline" "realtime" "-cpu-used" "8" "-crf" "22" "-b:v" "0" "-pix_fmt" "yuv420p"); break;;
-            *) echo "不正な選択じゃ。もう一度選ぶのじゃ。";;
+        1)
+            echo "» 信頼性重視！ CPU超高速エンコード(libx264)を選ぶぞ。"
+            VIDEO_CODEC_OPTS=("-c:v" "libx264" "-preset" "ultrafast" "-crf" "20" "-pix_fmt" "yuv420p")
+            break
+            ;;
+        2)
+            echo "» AV1じゃな。新しいコーデックじゃが、負荷は高めじゃぞ。"
+            VIDEO_CODEC_OPTS=("-c:v" "libsvtav1" "-preset" "8" "-crf" "25" "-pix_fmt" "yuv420p")
+            break
+            ;;
+        3)
+            echo "» VP9じゃな。YouTubeが得意なやつじゃ。"
+            VIDEO_CODEC_OPTS=("-c:v" "libvpx-vp9" "-deadline" "realtime" "-cpu-used" "8" "-crf" "22" "-b:v" "0" "-pix_fmt" "yuv420p")
+            break
+            ;;
+        *) echo "不正な選択じゃ。もう一度選ぶのじゃ。" ;;
         esac
     done
 
@@ -166,10 +170,19 @@ if [ "$OPERATION_MODE" -ne 2 ]; then
     declare -a AUDIO_CODEC_OPTS
     select acodec_choice in "${AUDIO_CODECS[@]}"; do
         case $REPLY in
-            1) AUDIO_CODEC_OPTS=("-c:a" "flac"); break;;
-            2) AUDIO_CODEC_OPTS=("-c:a" "libopus" "-b:a" "192k"); break;;
-            3) AUDIO_CODEC_OPTS=("-c:a" "libmp3lame" "-q:a" "2"); break;;
-            *) echo "不正な選択じゃ。もう一度選ぶのじゃ。";;
+        1)
+            AUDIO_CODEC_OPTS=("-c:a" "flac")
+            break
+            ;;
+        2)
+            AUDIO_CODEC_OPTS=("-c:a" "libopus" "-b:a" "192k")
+            break
+            ;;
+        3)
+            AUDIO_CODEC_OPTS=("-c:a" "libmp3lame" "-q:a" "2")
+            break
+            ;;
+        *) echo "不正な選択じゃ。もう一度選ぶのじゃ。" ;;
         esac
     done
 

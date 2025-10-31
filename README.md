@@ -45,6 +45,21 @@ chmod +x *.sh
 
 ## スクリプト一覧（内容・依存・使い方）
 
+### Audio_File_Splitter.sh
+
+- 内容: FFmpeg を使用して、指定ディレクトリ内の音声ファイルを指定秒数ごとに分割。出力形式は FLAC、WAV(16bit)、コピー（元の形式）から選択可能。単一ファイルまたは一括処理に対応。
+- 使い方: `./Audio_File_Splitter.sh <入力ディレクトリ> [ファイル名]`（単一）、または `-b` オプションで一括処理。`-h`/`--help` で詳細。
+- 依存: ffmpeg。
+- オプション:
+  - `-b, --batch`: 一括処理モード
+  - `-d, --duration <秒>`: 分割時間（デフォルト: 600秒）
+  - `-f, --format <形式>`: 出力形式（flac/wav_16bit/copy、デフォルト: wav_16bit）
+  - `-p, --prefix <接頭辞>`: 分割後のファイル名接頭辞（デフォルト: split_）
+  - `-r, --delete-original`: 成功時に元ファイルを削除（デフォルト: オン）
+  - `--no-delete`: 元ファイルを削除しない
+  - `-i, --install-ffmpeg`: FFmpeg を自動インストール（sudo 必要）
+- 備考: 元ファイルは成功時にデフォルトで削除されます。`--no-delete` で無効化できます。
+
 ### BootAnimation-zopflipng.sh
 
 - 内容: カレントディレクトリの PNG を `zopflipng -m` で最適化。

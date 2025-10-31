@@ -2,24 +2,24 @@
 
 # ヘルプメッセージを表示する関数
 show_help() {
-  cat << EOF
+    cat <<EOF
 Usage: $(basename "$0")
 
 Description:
-  カレントディレクトリにある全てのPNGファイル (*.png) をzopflipngを使って最適化します。
-  このスクリプトは引数を必要としません。
+    カレントディレクトリにある全てのPNGファイル (*.png) をzopflipngを使って最適化します。
+    このスクリプトは引数を必要としません。
 
 Options:
-  -h, --help    このヘルプメッセージを表示して終了します。
+    -h, --help    このヘルプメッセージを表示して終了します。
 EOF
 }
 
 # -h または --help が引数として渡された場合にヘルプを表示
 if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
-  show_help
-  exit 0
+    show_help
+    exit 0
 fi
 
-for fn in *.png ; do
+for fn in *.png; do
     zopflipng -m ${fn}s ${fn}s.new && mv -f ${fn}s.new ${fn}
 done

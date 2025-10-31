@@ -7,29 +7,29 @@
 
 # ヘルプメッセージを表示する関数
 show_help() {
-    cat << EOF
+    cat <<EOF
 Usage: sudo $(basename "$0") [option]
 
 Description:
-  このスクリプトは、スクリプト自身が置かれているディレクトリにある '.sh' 拡張子を持つファイルへの
-  シンボリックリンクを /usr/local/bin に作成、または削除します。
-  このスクリプト自身は対象外となります。
+    このスクリプトは、スクリプト自身が置かれているディレクトリにある '.sh' 拡張子を持つファイルへの
+    シンボリックリンクを /usr/local/bin に作成、または削除します。
+    このスクリプト自身は対象外となります。
 
 Options:
-  -i, --install   インストールモードで実行します。
-                  まず、ディレクトリから削除されたスクリプトに対応する古いリンクを掃除してから、
-                  現在のスクリプトのシンボリックリンクを作成・更新します。
-                  シンボリックリンクは 'Koa_' という接頭辞付きで作成されます。
-                  例: 'myscript.sh' -> '/usr/local/bin/Koa_myscript.sh'
+    -i, --install   インストールモードで実行します。
+                    まず、ディレクトリから削除されたスクリプトに対応する古いリンクを掃除してから、
+                    現在のスクリプトのシンボリックリンクを作成・更新します。
+                    シンボリックリンクは 'Koa_' という接頭辞付きで作成されます。
+                    例: 'myscript.sh' -> '/usr/local/bin/Koa_myscript.sh'
 
-  -u, --uninstall アンインストールモードで実行します。
-                  このスクリプトのディレクトリ内のスクリプトに対応するシンボリックリンクを
-                  /usr/local/bin から削除します。
+    -u, --uninstall アンインストールモードで実行します。
+                    このスクリプトのディレクトリ内のスクリプトに対応するシンボリックリンクを
+                    /usr/local/bin から削除します。
 
-  -h, --help      このヘルプメッセージを表示して終了します。
+    -h, --help      このヘルプメッセージを表示して終了します。
 
 注意: このスクリプトはシステムのディレクトリに変更を加えるため、
-      root権限（sudo）で実行する必要があります。
+    root権限（sudo）で実行する必要があります。
 EOF
 }
 
@@ -48,7 +48,6 @@ fi
 self_name=$(basename "$0")
 # readlink -f でシンボリックリンクを解決し、dirnameでディレクトリパスを取得
 script_dir=$(dirname "$(readlink -f "$0")")
-
 
 # --- インストール処理 ---
 install_links() {
@@ -176,33 +175,30 @@ if [ -z "$(find "$script_dir" -maxdepth 1 -type f -name '*.sh' -not -name "$self
     fi
     # アンインストール対象がない場合もあるので、ここで終了するのはアンインストール時以外
     if [[ "$1" != "-u" && "$1" != "--uninstall" ]]; then
-       exit 0
+        exit 0
     fi
 fi
 
-
 case "$1" in
-    -i|--install)
-        install_links
-        ;;
-    -u|--uninstall)
-        uninstall_links
-        ;;
-    -h|--help)
-        show_help
-        ;;
-    "")
-        echo "エラー: オプションが指定されていません。" >&2
-        show_help
-        exit 1
-        ;;
-    *)
-        echo "エラー: 不明なオプションです: $1" >&2
-        show_help
-        exit 1
-        ;;
+-i | --install)
+    install_links
+    ;;
+-u | --uninstall)
+    uninstall_links
+    ;;
+-h | --help)
+    show_help
+    ;;
+"")
+    echo "エラー: オプションが指定されていません。" >&2
+    show_help
+    exit 1
+    ;;
+*)
+    echo "エラー: 不明なオプションです: $1" >&2
+    show_help
+    exit 1
+    ;;
 esac
 
 exit 0
-
-

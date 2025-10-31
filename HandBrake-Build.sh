@@ -2,23 +2,23 @@
 
 # ヘルプメッセージを表示する関数
 show_help() {
-  cat << EOF
+    cat << EOF
 Usage: $(basename "$0")
 
 Description:
-  Windows向けのHandBrake CUIをビルドするための環境を構築し、ビルドを実行します。
-  依存関係のインストール、MinGW-w64ツールチェーンのビルド、HandBrakeのビルドを自動で行います。
-  実行にはsudo権限が必要です。
+    Windows向けのHandBrake CUIをビルドするための環境を構築し、ビルドを実行します。
+    依存関係のインストール、MinGW-w64ツールチェーンのビルド、HandBrakeのビルドを自動で行います。
+    実行にはsudo権限が必要です。
 
 Options:
-  -h, --help    このヘルプメッセージを表示して終了します。
+    -h, --help    このヘルプメッセージを表示して終了します。
 EOF
 }
 
 # -h または --help が引数として渡された場合にヘルプを表示
 if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
-  show_help
-  exit 0
+    show_help
+    exit 0
 fi
 
 echo アップデート
