@@ -23,6 +23,7 @@
 - GNOME 壁紙スライドショー生成と適用（gsettings / apt）
 - システム設定（GUI 起動ターゲット切替、/usr/local/bin へのリンク展開）
 - ZFS データセット変換（zfs）
+- Demucs 前後処理（音源分割・分離後の連結）
 
 ## 動作環境と実行前の準備
 
@@ -44,6 +45,52 @@ chmod +x *.sh
 - zfs（ZFS 関連）
 
 ## スクリプト一覧（内容・依存・使い方）
+
+### Demucs ワークフロー（推奨手順）
+
+1) 事前分割（長尺対策・安定化）
+   - [Demucs_prepare_segments.sh](Demucs_prepare_segments.sh)
+   - 内容: 長尺の音源を一定秒数で分割（デフォルト 600 秒）。Demucs 実行を安定化。
+   - 使い方:
+
+     ```bash
+     ./Demucs_prepare_segments.sh /path/to/audio -b -d 600 -f wav_16bit
+     ```
+
+2) Demucs 分離の実行
+   - 例: 分割済みファイル群に対し demucs を実行（モデルは環境に合わせて選択）
+
+     ```bash
+     demucs -n htdemucs_ft split_*
+     ```
+
+3) 分離結果の連結（separated/htdemucs_ft/ 内で実行）
+   - [Demucs_concat_flac_segments.sh](Demucs_concat_flac_segments.sh)
+   - 内容: split_ベース名_XXX ディレクトリから vocals.flac / minus_vocals.flac をベース名ごとに連結。
+   - 使い方:
+
+     ```bash
+     cd separated/htdemucs_ft
+     ../../Demucs_concat_flac_segments.sh
+     ```
+
+### Demucs_prepare_segments.sh
+
+- 内容: FFmpeg で指定ディレクトリ内の音声ファイルを一定秒数で分割。Demucs 前処理として長尺音源を分割する用途を想定。
+- 使い方: `./Demucs_prepare_segments.sh <入力ディレクトリ> [ファイル名]`、または `-b` で一括処理。`-h`/`--help`。
+- 依存: ffmpeg。
+- 主なオプション:
+  - `-b, --batch` 一括処理
+  - `-d, --duration <秒>` 分割時間（既定: 600）
+  - `-f, --format <形式>` 出力形式（flac/wav_16bit/copy）
+  - `-p, --prefix <接頭辞>` 接頭辞（既定: split_）
+  - `-r, --delete-original` 成功時に元ファイルを削除（`--no-delete` で抑止）
+
+### Demucs_concat_flac_segments.sh
+
+- 内容: `separated/htdemucs_ft/` 直下で、`split_ベース名_XXX` ディレクトリ群に含まれる `vocals.flac` と `minus_vocals.flac` を、ベース名ごとに連結。
+- 使い方: `cd separated/htdemucs_ft && ../../Demucs_concat_flac_segments.sh`。`-h`/`--help`。
+- 依存: ffmpeg, sort (GNU sort の `sort -V`)。
 
 ### Audio_File_Splitter.sh
 
@@ -204,4 +251,3 @@ chmod +x script.sh
 
 - 改善やバグ報告、ヘルプ整備の PR を歓迎します。再現手順や環境を添えてください。(やる気があれば)
 - ライセンスは未指定です。
-

@@ -9,21 +9,39 @@
 # --- ヘルプ関数の定義 ---
 # (ユーザー設定に基づき、-h または --help で呼び出される)
 show_help() {
-    echo "使用法: $0 <in_path> [オプション]... [target_file_name]"
-    echo
-    echo "  <in_path>          処理対象ファイルがあるディレクトリじゃ。"
-    echo "  [target_file_name] (任意) <in_path> 内の特定のファイル名。"
-    echo "                     これを指定しない場合、-b (一括処理) が必要になるぞ。"
-    echo
-    echo "オプション:"
-    echo "  -b, --batch            <in_path> 内の全オーディオファイルを一括処理するぞ。"
-    echo "  -d, --duration <秒>    分割する時間（秒）。 (デフォルト: 600)"
-    echo "  -f, --format <形式>    出力形式 (flac, wav_16bit, copy)。 (デフォルト: wav_16bit)"
-    echo "  -p, --prefix <接頭辞>  分割後のファイル名の接頭辞。 (デフォルト: split_)"
-    echo "  -r, --delete-original  成功時に元のファイルを削除する。 (デフォルト: オン)"
-    echo "      --no-delete        元のファイルを削除しない。（-rの無効化）"
-    echo "  -i, --install-ffmpeg   (sudo) apt update/install -y ffmpeg を実行するぞ。"
-    echo "  -h, --help             このヘルプを表示するのじゃ。"
+    cat << EOF
+使い方: $(basename "$0") <in_path> [オプション]... [target_file_name]
+
+概要:
+    Demucs の事前分割用途にも使える、FFmpeg ベースの音声分割スクリプト。
+
+引数:
+    <in_path>            処理対象ファイルがあるディレクトリ。
+    [target_file_name]   (任意) <in_path> 内の特定のファイル名。
+                        これを指定しない場合は -b で一括処理する。
+
+オプション:
+    -b, --batch              ディレクトリ内の全オーディオを一括処理
+    -d, --duration <秒>      分割秒数 (既定: 600)
+    -f, --format <形式>      出力形式: flac | wav_16bit | copy (既定: wav_16bit)
+    -p, --prefix <接頭辞>    出力の接頭辞 (既定: split_)
+    -r, --delete-original    分割成功後に元ファイルを削除 (既定: オン)
+        --no-delete          元ファイルを削除しない
+    -i, --install-ffmpeg     sudo apt で ffmpeg をインストール
+    -h, --help               このヘルプを表示
+
+例:
+    # ディレクトリ内の全ファイルを 10 分ごとに WAV(16bit) で分割
+    $(basename "$0") /path/to/in -b -d 600 -f wav_16bit
+
+    # 特定ファイルのみ分割（接頭辞を変更）
+    $(basename "$0") /path/to/in "target.m4a" -d 300 -p split_
+
+Demucs との併用:
+    1) 本スクリプトで長尺音源を分割
+    2) 分割ファイル群に対して demucs を実行
+    3) 分離後は Demucs_concat_flac_segments.sh で連結
+EOF
 }
 
 # --- デフォルト値の設定 ---
