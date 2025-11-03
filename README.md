@@ -77,35 +77,38 @@ chmod +x *.sh
 ### Demucs_prepare_segments.sh
 
 - 内容: FFmpeg で指定ディレクトリ内の音声ファイルを一定秒数で分割。Demucs 前処理として長尺音源を分割する用途を想定。
-- 使い方: `./Demucs_prepare_segments.sh <入力ディレクトリ> [ファイル名]`、または `-b` で一括処理。`-h`/`--help`。
+- 使い方: `./Demucs_prepare_segments.sh <入力ディレクトリ> [ファイル名]`、または `-b` で一括処理。`-h`/`--help` でヘルプ表示。
 - 依存: ffmpeg。
 - 主なオプション:
   - `-b, --batch` 一括処理
   - `-d, --duration <秒>` 分割時間（既定: 600）
-  - `-f, --format <形式>` 出力形式（flac/wav_16bit/copy）
+  - `-f, --format <形式>` 出力形式（flac/wav_16bit/copy、既定: wav_16bit）
   - `-p, --prefix <接頭辞>` 接頭辞（既定: split_）
-  - `-r, --delete-original` 成功時に元ファイルを削除（`--no-delete` で抑止）
+  - `-r, --delete-original` 成功時に元ファイルを削除（既定: オン）
+  - `--no-delete` 元ファイルを削除しない
+  - `-i, --install-ffmpeg` sudo apt で ffmpeg をインストール
 
 ### Demucs_concat_flac_segments.sh
 
-- 内容: `separated/htdemucs_ft/` 直下で、`split_ベース名_XXX` ディレクトリ群に含まれる `vocals.flac` と `minus_vocals.flac` を、ベース名ごとに連結。
-- 使い方: `cd separated/htdemucs_ft && ../../Demucs_concat_flac_segments.sh`。`-h`/`--help`。
+- 内容: `separated/htdemucs_ft/` 直下で、`split_ベース名_XXX` ディレクトリ群に含まれる `vocals.flac` と `minus_vocals.flac` を、ベース名ごとに連結。Demucs 分離後の後処理として使用。
+- 使い方:
+
+  ```bash
+  cd separated/htdemucs_ft
+  ../../Demucs_concat_flac_segments.sh
+  ```
+
+  `-h` または `--help` でヘルプ表示。
 - 依存: ffmpeg, sort (GNU sort の `sort -V`)。
+- 備考: 連結後、元の分割ディレクトリを削除するか確認プロンプトが表示されます。
 
 ### Audio_File_Splitter.sh
 
-- 内容: FFmpeg を使用して、指定ディレクトリ内の音声ファイルを指定秒数ごとに分割。出力形式は FLAC、WAV(16bit)、コピー（元の形式）から選択可能。単一ファイルまたは一括処理に対応。
-- 使い方: `./Audio_File_Splitter.sh <入力ディレクトリ> [ファイル名]`（単一）、または `-b` オプションで一括処理。`-h`/`--help` で詳細。
-- 依存: ffmpeg。
-- オプション:
-  - `-b, --batch`: 一括処理モード
-  - `-d, --duration <秒>`: 分割時間（デフォルト: 600秒）
-  - `-f, --format <形式>`: 出力形式（flac/wav_16bit/copy、デフォルト: wav_16bit）
-  - `-p, --prefix <接頭辞>`: 分割後のファイル名接頭辞（デフォルト: split_）
-  - `-r, --delete-original`: 成功時に元ファイルを削除（デフォルト: オン）
-  - `--no-delete`: 元ファイルを削除しない
-  - `-i, --install-ffmpeg`: FFmpeg を自動インストール（sudo 必要）
-- 備考: 元ファイルは成功時にデフォルトで削除されます。`--no-delete` で無効化できます。
+- 備考: 本スクリプトは [Demucs_prepare_segments.sh](Demucs_prepare_segments.sh) に名称変更されました（機能は同等）。旧名での参照は非推奨です。
+
+### concat_flac_segments.sh
+
+- 備考: 本スクリプトは [Demucs_concat_flac_segments.sh](Demucs_concat_flac_segments.sh) に名称変更されました（機能は同等）。旧名での参照は非推奨です。
 
 ### BootAnimation-zopflipng.sh
 
