@@ -95,4 +95,4 @@ for importfile in *.$input_extension; do
 done
 echo "出力先のffmepgフォルダを削除します(空フォルダ削除用)"
 rmdir --ignore-fail-on-non-empty "$outputpath"
-bash ~/shellscript/LINEmessage.sh "PI335でffmpegの実行が終わりました。 実行場所：$current_dir"
+Discord_Message.sh "$(hostname)でffmpegの実行が終わりました。 実行場所：$current_dir"
