@@ -19,6 +19,7 @@
 
 - 画像変換・整理（ImageMagick / zopflipng）
 - 動画エンコード・整理（ffmpeg / ffprobe）
+- APNG アニメーション最適化
 - 通知（Discord Webhook）
 - GNOME 壁紙スライドショー生成と適用（gsettings / apt）
 - システム設定（GUI 起動ターゲット切替、/usr/local/bin へのリンク展開）
@@ -39,7 +40,8 @@ chmod +x *.sh
 
 - ffmpeg / ffprobe, ffplay, v4l2-ctl, arecord
 - ImageMagick の convert（もしくは magick）
-- zopflipng, curl, git
+- zopflipng, apngdis, apngasm
+- curl, git
 - rustup, cargo, meson, ninja, cmake, make, gcc 等（HandBrake ビルド）
 - gsettings, apt（GNOME 関連）
 - zfs（ZFS 関連）
@@ -191,6 +193,14 @@ chmod +x *.sh
 - 内容: 指定フォルダ内のファイル・隠しファイルを 1 つ上の階層（カレント）へ移動後、空になったフォルダを削除。
 - 使い方: `./MoveParentFolder.sh <対象フォルダ>`。`-h`/`--help` で説明。
 - 注意: 上書きの可能性に留意してください（mv のオプション変更で安全化可能）。
+
+### optimize_apng.sh
+
+- 内容: APNG ファイルを分解し、類似した重複フレーム（連続フレームおよびループ始終端）を削除して軽量化・最適化します。処理途中でフォルダを開き、手動でのフレーム削除も可能です。
+- 使い方:
+  - 最適化版の作成: `./optimize_apng.sh <入力ファイル.png>`
+  - 適用（上書き）: `./optimize_apng.sh -d` (カレントディレクトリの `*-optimize.apng` を元ファイルに適用)
+- 依存: apngdis, apngasm, imagemagick (compare), xdg-open
 
 ### RunSubfolder.sh
 
