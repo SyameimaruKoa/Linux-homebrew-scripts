@@ -37,10 +37,10 @@ filePattern1="*.jpg"
 filePattern2="*.jpeg"
 filePattern3="*.png"
 filePattern4="*.bmp"
-find . -maxdepth 1 -iname "$filePattern1" \
-    -or -iname "$filePattern2" \
-    -or -iname "$filePattern3" \
-    -or -iname "$filePattern4" \
+find . -maxdepth 1 \( -iname "$filePattern1" \
+    -o -iname "$filePattern2" \
+    -o -iname "$filePattern3" \
+    -o -iname "$filePattern4" \) \
     -mtime +180 |
     while read -r fname; do
         if [ "${fname}" = . ]; then
@@ -63,4 +63,4 @@ find . -maxdepth 1 -iname "$filePattern1" \
         fi
     done
 
-Discord_Message.sh "$(hostname)でffmpegの実行が終わりました。 実行場所：$current_dir"
+Discord_Message.sh "$(hostname)で画像変換が終わりました。 実行場所：$current_dir"

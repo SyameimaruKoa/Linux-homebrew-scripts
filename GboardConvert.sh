@@ -43,6 +43,6 @@ addname=_convert
 new_filepath="${filepath%.*}$addname.${extension}"
 
 # 新しいファイルパスを表示
-echo $new_filepath
+echo "$new_filepath"
 
 sed -e "s/	ja-JP/	名詞	/g" "$1" >>"$new_filepath"

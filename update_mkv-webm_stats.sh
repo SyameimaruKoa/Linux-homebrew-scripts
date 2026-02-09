@@ -63,4 +63,3 @@ done
 
 echo "--------------------------------------------------"
 echo "全ての処理が完了したはずじゃ。"
-    ./update_mkv_stats.sh /path/to/video_folder

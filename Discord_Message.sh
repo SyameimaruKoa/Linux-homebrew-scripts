@@ -19,7 +19,7 @@ Usage: $(basename "$0") <message>
 
 Description:
     引数で渡されたメッセージをDiscordの特定のWebhook URLに送信します。
-    このスクリプトは .env ファイルから DISCORD_WEB_HOOK_URL を読み込みます。
+    このスクリプトは .env ファイルから DISCORD_WEBHOOK_URL を読み込みます。
     複数の引数を指定した場合、それらは改行で連結されて一つのメッセージとして送信されます。
 
 Arguments:
@@ -88,6 +88,10 @@ for arg in "$@"; do
     MESSAGE="$MESSAGE$arg\n"
 done
 MESSAGE="${MESSAGE%\\n}"
+
+# メッセージ内の特殊文字をJSONエスケープするのじゃ
+# バックスラッシュを先に、次にダブルクォートをエスケープ
+MESSAGE=$(printf '%s' "$MESSAGE" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
 # curlコマンドでDiscordに送信じゃ
 curl \

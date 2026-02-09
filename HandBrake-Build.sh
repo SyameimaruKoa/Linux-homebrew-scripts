@@ -38,5 +38,5 @@ git clone https://github.com/HandBrake/HandBrake.git && cd HandBrake
 echo MinGW-w64ツールチェーンビルド
 scripts/mingw-w64-build x86_64 ~/toolchains/
 
-HandBrake CUIをビルド
+echo "HandBrake CUIをビルド"
 ./configure --cross=x86_64-w64-mingw32 --launch-jobs=$(nproc) --enable-fdk-aac --launch

@@ -40,7 +40,7 @@ main_script_to_run="$1"
 shift
 script_args=("$@")
 
-find . -mindepth 1 -type d | while read -r subdir; do
+find . -mindepth 1 -maxdepth 1 -type d | while read -r subdir; do
     # メインスクリプトからの出力であることを明確にするのじゃ。
     echo "[メインスクリプト] 「$subdir」に移動してスクリプトを実行するのじゃ"
 

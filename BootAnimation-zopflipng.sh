@@ -20,6 +20,7 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
     exit 0
 fi
 
+shopt -s nullglob
 for fn in *.png; do
-    zopflipng -m ${fn}s ${fn}s.new && mv -f ${fn}s.new ${fn}
+    zopflipng -m "$fn" "${fn}.new" && mv -f "${fn}.new" "$fn"
 done
