@@ -26,6 +26,21 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "致命的エラー: 必須コマンド '$cmd' が見つからん。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands v4l2-ctl arecord ffmpeg ffplay awk grep sed sort
+
 echo "--- 万能キャプチャスクリプト ---"
 
 # --- 動作モードの選択 ---

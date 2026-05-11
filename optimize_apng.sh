@@ -135,6 +135,10 @@ fi
 
 check_dependency
 
+if ! command -v xdg-open &> /dev/null; then
+    echo "注意: xdg-open が見つからないため、手動確認時はパス表示のみになります。"
+fi
+
 # 画像比較関数
 is_duplicate() {
     local img1="$1"

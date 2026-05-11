@@ -21,12 +21,28 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
     exit 0
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands sudo apt apt-get git curl
+
 echo アップデート
 sudo apt-get update
 echo 依存関係をインストール
 sudo apt install automake autoconf autopoint build-essential cmake gcc git intltool libtool libtool-bin m4 make meson nasm ninja-build patch pkg-config tar zlib1g-dev clang curl
 curl https://sh.rustup.rs -sSf | sh
 source "$HOME/.cargo/env"
+require_commands rustup cargo
 cargo install cargo-c
 rustup target add x86_64-pc-windows-gnu
 

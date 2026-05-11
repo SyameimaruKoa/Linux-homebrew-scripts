@@ -32,6 +32,21 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands find bash
+
 # bash ［このファイル］ ［各フォルダ内で実行したいスクリプト］ ［スクリプトへの引数］
 # 現在のディレクトリからサブディレクトリを列挙し、各サブディレクトリ内で指定されたスクリプトを実行するのじゃ。
 

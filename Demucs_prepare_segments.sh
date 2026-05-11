@@ -137,6 +137,19 @@ if [ -z "$in_path" ]; then
     exit 1
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "❌ 必須コマンド '$cmd' が見つからん。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
 # $in_path の末尾のスラッシュを削除 (find での重複パスを避けるため)
 in_path="${in_path%/}"
 
@@ -180,10 +193,7 @@ fi
 if [ "$has_files_to_process_flag" = true ]; then
     if [ "$install_ffmpeg" = true ]; then
         echo "🚀 FFmpegをインストール中じゃ... (sudoが必要じゃ)"
-        if ! command -v sudo >/dev/null; then
-            echo "❌ sudo コマンドが見つからん。apt を実行できんぞ。" >&2
-            exit 1
-        fi
+        require_commands sudo apt
         # apt update は失敗することがあるが、致命的ではない場合もある
         sudo apt update || echo "   (apt update に少し失敗したかもしれんが、ffmpegインストールを試みるぞ)"
 

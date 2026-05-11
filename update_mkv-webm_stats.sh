@@ -34,6 +34,21 @@ case "$1" in
         ;;
 esac
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands mkvpropedit find
+
 # --- ディレクトリ存在確認 ---
 if [ ! -d "$TARGET_DIR" ]; then
     echo "エラー: 指定されたディレクトリ '$TARGET_DIR' が見つからぬか、ディレクトリではないようじゃ。"

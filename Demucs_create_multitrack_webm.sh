@@ -37,6 +37,21 @@ if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
     exit 0
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands ffmpeg ffprobe
+
 # --- メイン処理ループ ---
 # 引数で渡されたファイルを一つずつ処理する
 for WEBM_FILE in "$@"; do

@@ -40,6 +40,21 @@ case "$1" in
         ;;
 esac
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands sed
+
 INPUT_PATH="$1"
 
 # ファイル存在チェック
@@ -60,6 +75,7 @@ OUTPUT_PATH=""
 
 if [ "${EXTENSION,,}" == "zip" ]; then
     IS_ZIP=true
+    require_commands unzip
     echo "ZIPファイルを受け取ったぞ。展開して中身を確認するのじゃ..."
     
     # 一時ディレクトリ作成

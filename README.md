@@ -2,6 +2,8 @@
 
 個人用のシェルスクリプト集です。画像・動画の一括変換、整理、通知、環境設定、ZFS 変換などを自動化します。多くのスクリプトは `-h` または `--help` で使い方を表示します。
 
+現在の各スクリプトは、実行時に「追加導入が必要なコマンド」の事前チェックを行い、不足している場合はエラーメッセージを表示して終了します。
+
 ## 目次
 
 - 概要
@@ -40,13 +42,16 @@ chmod +x *.sh
 主な依存コマンド（スクリプトにより異なる）
 
 - ffmpeg / ffprobe, ffplay, v4l2-ctl, arecord
-- ImageMagick の convert（もしくは magick）
+- ImageMagick の convert / magick / compare
 - zopflipng, apngdis, apngasm
 - mkvpropedit（mkvtoolnix）
-- curl, git
+- curl, git, unzip
+- parallel（GNU Parallel）
+- shred
 - rustup, cargo, meson, ninja, cmake, make, gcc 等（HandBrake ビルド）
-- gsettings, apt（GNOME 関連）
+- gsettings, apt, systemctl（GNOME / Ubuntu 関連）
 - zfs（ZFS 関連）
+- xdg-user-dir, xdg-open（環境依存・あると便利）
 
 ## スクリプト一覧（内容・依存・使い方）
 
@@ -152,7 +157,15 @@ chmod +x *.sh
 
 - 内容: カレント以下の全「ファイル」を `shred -uvz` で復元不能に削除（ディレクトリ構造は残る）。実行前に `yes` 確認あり。
 - 使い方: 引数なしで実行。`-h`/`--help` で説明。
+- 依存: shred。
 - 注意: 取り返しがつきません。テスト用ディレクトリで動作確認してください。
+
+### [Convert-GboardDictionary.sh](Convert-GboardDictionary.sh)
+
+- 内容: Gboard と Google 日本語入力の辞書形式を相互変換。TSVテキストだけでなく、`dictionary.txt` を含む ZIP 入力にも対応。
+- 使い方: `./Convert-GboardDictionary.sh <辞書ファイルまたはZIP>`。`-h`/`--help` で説明。
+- 依存: sed、（ZIP入力時）unzip。
+- 備考: ZIP入力時は `xdg-user-dir` があればダウンロードフォルダへ、なければ `~/Downloads` へ出力。
 
 ### [GboardConvert.sh](GboardConvert.sh)
 
@@ -197,7 +210,7 @@ chmod +x *.sh
 
 - 内容: 180 日以上前更新の jpg/jpeg/png/bmp を WebP（quality=90）へ変換し、元ファイルを削除。タイムスタンプ維持。
 - 使い方: 引数なし。`-h`/`--help` で説明。
-- 依存: ImageMagick（convert）。
+- 依存: ImageMagick（magick）, GNU Parallel（parallel）。
 - 備考: 終了時に [Discord_Message.sh](Discord_Message.sh) で通知。
 
 ### [MoveParentFolder.sh](MoveParentFolder.sh)
@@ -223,7 +236,7 @@ chmod +x *.sh
 
 - 内容: 対話式で Ubuntu のデフォルト起動ターゲットを GUI（graphical.target）/ CUI（multi-user.target）に切り替え。
 - 使い方: 引数なしで実行し、`e`（有効）/`d`（無効）を入力。
-- 依存: systemd（systemctl）。`sudo` が必要。
+- 依存: systemd（systemctl）, sudo。
 
 ### [SETUP.SH](SETUP.SH)
 

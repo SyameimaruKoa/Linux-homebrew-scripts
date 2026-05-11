@@ -69,6 +69,21 @@ if [ "$#" -ne 3 ]; then
     exit 1
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands zfs readlink stat
+
 # 変数定義
 TARGET_DIR=$(readlink -f "$1")
 ZFS_DATASET_ARG="$2"

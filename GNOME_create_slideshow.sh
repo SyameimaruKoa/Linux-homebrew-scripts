@@ -39,6 +39,21 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+require_commands() {
+    local missing=0
+    for cmd in "$@"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "エラー: 必須コマンド '$cmd' が見つかりません。" >&2
+            missing=1
+        fi
+    done
+    if [ "$missing" -ne 0 ]; then
+        exit 1
+    fi
+}
+
+require_commands find realpath gsettings
+
 IMAGE_DIR=$(realpath "$1")
 OUTPUT_FILE_PATH="$(pwd)/$OUTPUT_FILE"
 
@@ -110,6 +125,7 @@ echo "${#IMAGE_FILES[@]} 枚の画像が含まれています。"
 # gnome-tweaksがインストールされているか確認
 if ! command -v gnome-tweaks &>/dev/null; then
     echo "gnome-tweaksが見つかりません。インストールを試みます..."
+    require_commands sudo apt
     # sudoで実行するため、パスワードの入力が必要になる場合がある
     sudo apt update && sudo apt install -y gnome-tweaks
     if [ $? -ne 0 ]; then
