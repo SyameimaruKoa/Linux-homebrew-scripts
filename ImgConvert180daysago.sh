@@ -1,66 +1,35 @@
 #!/bin/bash
 
-# ヘルプメッセージを表示する関数
 show_help() {
     cat <<EOF
 Usage: $(basename "$0")
 
 Description:
-    カレントディレクトリ内で180日以上前に更新された画像ファイル (jpg, jpeg, png, bmp) を
-    WebP形式に変換します。変換後、元のファイルは削除されます。
-    変換品質はスクリプト内で quality=90 に設定されています。
+    180日以上更新されていない画像をWebPに一括変換する。
+    GNU Parallelを使用し、全CPUコアで並列処理を行うのじゃ。
 
 Options:
-    -h, --help    このヘルプメッセージを表示して終了します。
+    -h, --help    このヘルプを表示して終了する。
 EOF
 }
 
-# -h または --help が引数として渡された場合にヘルプを表示
 if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
     show_help
     exit 0
 fi
 
 current_dir=$(pwd)
-
-echo "☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆"
-echo "現在はここにいます"
-echo "$current_dir"
-echo "☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆☆"
-
-#コンバート品質
 quality=90
-#アウトプット拡張子
-output_extension=webp
 
-filePattern1="*.jpg"
-filePattern2="*.jpeg"
-filePattern3="*.png"
-filePattern4="*.bmp"
-find . -maxdepth 1 \( -iname "$filePattern1" \
-    -o -iname "$filePattern2" \
-    -o -iname "$filePattern3" \
-    -o -iname "$filePattern4" \) \
-    -mtime +180 |
-    while read -r fname; do
-        if [ "${fname}" = . ]; then
-            echo 処理を始めます
-        else
-            echo "$fname" | grep -q "^/" && fname="."$fname
-            outputfile="${fname%.*}.$output_extension"
-            fileNum=0
-            while ls | grep -w "${outputfile##*/}" >/dev/null; do
-                fileNum=$(expr $fileNum + 1)
-                outputfile=${outputfile/.webp/}_${fileNum}.$output_extension
-            done
-            echo "───────────────ファイル情報───────────────"
-            echo "インプットファイル名：$fname"
-            echo "アウトプットファイル名：$outputfile"
-            echo "────────────────────────────────────────"
-            magick -quality $quality "$fname" "$outputfile" &&
-                touch -cr "$fname" "$outputfile" &&
-                rm "$fname"
-        fi
-    done
+# 1. 変換対象のファイルを検索
+# 2. 検索結果をNULL文字区切りでParallelに渡す
+# 3. Parallel内で変換・タイムスタンプ同期・削除を順に実行
+find . -maxdepth 1 -type f \
+    \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.bmp" \) \
+    -mtime +180 -print0 | \
+    parallel -0 --jobs 100% \
+        "magick -quality $quality {} {.}.webp && \
+         touch -cr {} {.}.webp && \
+         rm {}"
 
 Discord_Message.sh "$(hostname)で画像変換が終わりました。 実行場所：$current_dir"
