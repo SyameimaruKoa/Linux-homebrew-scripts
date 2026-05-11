@@ -57,7 +57,7 @@ find . -maxdepth 1 \( -iname "$filePattern1" \
             echo "インプットファイル名：$fname"
             echo "アウトプットファイル名：$outputfile"
             echo "────────────────────────────────────────"
-            convert -quality $quality "$fname" "$outputfile" &&
+            magick -quality $quality "$fname" "$outputfile" &&
                 touch -cr "$fname" "$outputfile" &&
                 rm "$fname"
         fi
