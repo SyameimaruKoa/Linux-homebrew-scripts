@@ -90,4 +90,4 @@ for importfile in *.$input_extension; do
 done
 echo "出力先のフォルダを削除します(空フォルダ削除用)"
 rmdir --ignore-fail-on-non-empty "$outputpath"
-Discord_Message.sh "$(hostname)でファイルの移動が終わりました。 実行場所：$current_dir"
+koa_Discord_Message.sh "$(hostname)でファイルの移動が終わりました。 実行場所：$current_dir"

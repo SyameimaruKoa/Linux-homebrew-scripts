@@ -57,7 +57,7 @@ chmod +x *.sh
 
 ### Demucs ワークフロー（推奨手順）
 
-1) 事前分割（長尺対策・安定化）
+1. 事前分割（長尺対策・安定化）
    - [Demucs_prepare_segments.sh](Demucs_prepare_segments.sh)
    - 内容: 長尺の音源を一定秒数で分割（デフォルト 600 秒）。Demucs 実行を安定化。
    - 使い方:
@@ -66,16 +66,16 @@ chmod +x *.sh
      ./Demucs_prepare_segments.sh /path/to/audio -b -d 600 -f wav_16bit
      ```
 
-2) Demucs 分離の実行
+2. Demucs 分離の実行
    - 例: 分割済みファイル群に対し demucs を実行（モデルは環境に合わせて選択）
 
      ```bash
      demucs -n htdemucs_ft split_*
      ```
 
-3) 分離結果の連結（separated/htdemucs_ft/ 内で実行）
+3. 分離結果の連結（separated/htdemucs_ft/ 内で実行）
    - [Demucs_concat_flac_segments.sh](Demucs_concat_flac_segments.sh)
-   - 内容: split_ベース名_XXX ディレクトリから vocals.flac / minus_vocals.flac をベース名ごとに連結。
+   - 内容: split\_ベース名\_XXX ディレクトリから vocals.flac / minus_vocals.flac をベース名ごとに連結。
    - 使い方:
 
      ```bash
@@ -83,7 +83,7 @@ chmod +x *.sh
      ../../Demucs_concat_flac_segments.sh
      ```
 
-4) マルチトラック WebM の生成（任意）
+4. マルチトラック WebM の生成（任意）
    - [Demucs_create_multitrack_webm.sh](Demucs_create_multitrack_webm.sh)
    - 内容: WebM ファイルに対応する vocals.flac / minus_vocals.flac を Opus トラックとして追加したマルチトラック WebM を生成。
    - 使い方:
@@ -101,7 +101,7 @@ chmod +x *.sh
   - `-b, --batch` 一括処理
   - `-d, --duration <秒>` 分割時間（既定: 600）
   - `-f, --format <形式>` 出力形式（flac/wav_16bit/copy、既定: wav_16bit）
-  - `-p, --prefix <接頭辞>` 接頭辞（既定: split_）
+  - `-p, --prefix <接頭辞>` 接頭辞（既定: split\_）
   - `-r, --delete-original` 成功時に元ファイルを削除（既定: オン）
   - `--no-delete` 元ファイルを削除しない
   - `-i, --install-ffmpeg` sudo apt で ffmpeg をインストール
@@ -117,6 +117,7 @@ chmod +x *.sh
   ```
 
   `-h` または `--help` でヘルプ表示。
+
 - 依存: ffmpeg, sort (GNU sort の `sort -V`)。
 - 備考: 連結後、元の分割ディレクトリを削除するか確認プロンプトが表示されます。
 
@@ -151,7 +152,7 @@ chmod +x *.sh
 - 内容: 指定拡張子の動画を HEVC（Intel QSV: hevc_qsv）で一括エンコード。既に HEVC のファイルはスキップ。メタデータを保持し、元ファイルは削除。
 - 使い方: `./ffmpegbulkEncode.sh <拡張子> [出力フォルダ]`（例: `mov ffmpeg`）。`-h`/`--help` で説明。
 - 依存: ffmpeg, ffprobe（QSV 利用環境を推奨）。
-- 備考: 一時フォルダに `/mnt/ramdisk/ffmpeg` があれば利用（なければ `/tmp/ffmpeg`）。終了時に [Discord_Message.sh](Discord_Message.sh) で通知。
+- 備考: 一時フォルダに `/mnt/ramdisk/ffmpeg` があれば利用（なければ `/tmp/ffmpeg`）。終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
 
 ### [File-All-deletion.sh](File-All-deletion.sh)
 
@@ -185,7 +186,7 @@ chmod +x *.sh
 - 内容: 指定拡張子の動画のうち HEVC でないものを出力フォルダへ移動（HEVC のものはスキップ）。
 - 使い方: `./h264Move.sh <拡張子> [出力フォルダ]`（デフォルト `Move`）。`-h`/`--help`。
 - 依存: ffprobe, bash。
-- 備考: 終了時に [Discord_Message.sh](Discord_Message.sh) で通知。
+- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
 
 ### [HandBrake-Build.sh](HandBrake-Build.sh)
 
@@ -198,20 +199,20 @@ chmod +x *.sh
 - 内容: カレントの jpg/jpeg/png/bmp を WebP（quality=70）へ変換し、元ファイルを削除。タイムスタンプ維持。
 - 使い方: 引数なしで実行。`-h`/`--help` で説明。
 - 依存: ImageMagick（convert）。
-- 備考: 終了時に [Discord_Message.sh](Discord_Message.sh) で通知。
+- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
 
 ### [ImgConvert180daysago-tast.sh](ImgConvert180daysago-tast.sh)
 
 - 内容: カレントで 180 日以上前更新の jpg を抽出し、`ls180.txt` に追記。全ファイル一覧は `lsフル.txt` に保存（変換は行わないテスト版）。
 - 使い方: 引数なし。`-h`/`--help` で説明。
-- 備考: 終了時に [Discord_Message.sh](Discord_Message.sh) で通知。
+- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
 
 ### [ImgConvert180daysago.sh](ImgConvert180daysago.sh)
 
 - 内容: 180 日以上前更新の jpg/jpeg/png/bmp を WebP（quality=90）へ変換し、元ファイルを削除。タイムスタンプ維持。
 - 使い方: 引数なし。`-h`/`--help` で説明。
 - 依存: ImageMagick（magick）, GNU Parallel（parallel）。
-- 備考: 終了時に [Discord_Message.sh](Discord_Message.sh) で通知。
+- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
 
 ### [MoveParentFolder.sh](MoveParentFolder.sh)
 
@@ -288,7 +289,7 @@ chmod +x script.sh
 - 破壊的操作: `File-All-deletion.sh` は復元不能な削除を行います。実行前に十分な確認を。
 - 元ファイル削除: 画像/動画変換系は変換後に元ファイルを削除します（スクリプト本文参照）。
 - 権限: `SETUP.SH`, `Set-GUI_Ubuntu.sh`, `HandBrake-Build.sh`, `zfs_converter.sh` などは `sudo` が必要です。
-- 外部通知: 一部スクリプトは [Discord_Message.sh](Discord_Message.sh) で Discord Webhook 通知を行います。`.env` の設定が必要です。
+- 外部通知: 一部スクリプトは [koa_Discord_Message.sh](koa_Discord_Message.sh) で Discord Webhook 通知を行います。`.env` の設定が必要です。
 - 動作確認: ディストリや環境差分により挙動が異なる場合があります。まずはテスト用ディレクトリで実行してください。
 
 ## 貢献・ライセンス

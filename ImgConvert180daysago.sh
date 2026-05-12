@@ -47,4 +47,4 @@ find . -maxdepth 1 -type f \
          touch -cr {} {.}.webp && \
          rm {}"
 
-Discord_Message.sh "$(hostname)で画像変換が終わりました。 実行場所：$current_dir"
+koa_Discord_Message.sh "$(hostname)で画像変換が終わりました。 実行場所：$current_dir"
