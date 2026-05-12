@@ -32,7 +32,7 @@ require_commands() {
     fi
 }
 
-require_commands parallel magick find awk Discord_Message.sh
+require_commands parallel magick find awk
 
 current_dir=$(pwd)
 quality=90
