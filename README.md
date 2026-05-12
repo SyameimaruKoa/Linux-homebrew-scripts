@@ -58,6 +58,7 @@ chmod +x *.sh
 ### Demucs ワークフロー（推奨手順）
 
 1. 事前分割（長尺対策・安定化）
+
    - [Demucs_prepare_segments.sh](Demucs_prepare_segments.sh)
    - 内容: 長尺の音源を一定秒数で分割（デフォルト 600 秒）。Demucs 実行を安定化。
    - 使い方:
@@ -67,6 +68,7 @@ chmod +x *.sh
      ```
 
 2. Demucs 分離の実行
+
    - 例: 分割済みファイル群に対し demucs を実行（モデルは環境に合わせて選択）
 
      ```bash
@@ -74,6 +76,7 @@ chmod +x *.sh
      ```
 
 3. 分離結果の連結（separated/htdemucs_ft/ 内で実行）
+
    - [Demucs_concat_flac_segments.sh](Demucs_concat_flac_segments.sh)
    - 内容: split\_ベース名\_XXX ディレクトリから vocals.flac / minus_vocals.flac をベース名ごとに連結。
    - 使い方:
@@ -84,6 +87,7 @@ chmod +x *.sh
      ```
 
 4. マルチトラック WebM の生成（任意）
+
    - [Demucs_create_multitrack_webm.sh](Demucs_create_multitrack_webm.sh)
    - 内容: WebM ファイルに対応する vocals.flac / minus_vocals.flac を Opus トラックとして追加したマルチトラック WebM を生成。
    - 使い方:
@@ -209,10 +213,10 @@ chmod +x *.sh
 
 ### [ImgConvert180daysago.sh](ImgConvert180daysago.sh)
 
-- 内容: 180 日以上前更新の jpg/jpeg/png/bmp を WebP（quality=90）へ変換し、元ファイルを削除。タイムスタンプ維持。
+- 内容: 180 日以上前更新の jpg/jpeg/png/bmp を WebP（quality=90）へ変換し、元ファイルを削除。1回のディスクスキャンで「全ファイル数」「拡張子対象数」「変換対象数」の統計を取得・表示し、効率的に処理する。タイムスタンプ維持。
 - 使い方: 引数なし。`-h`/`--help` で説明。
-- 依存: ImageMagick（magick）, GNU Parallel（parallel）。
-- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
+- 依存: ImageMagick（magick）, GNU Parallel（parallel）, awk, find。
+- 備考: 一時ファイルを `/tmp` に作成して処理。終了時に [Koa_Discord_Message.sh]Koa_Discord_Message.sh) で詳細な統計情報を通知する。
 
 ### [MoveParentFolder.sh](MoveParentFolder.sh)
 
