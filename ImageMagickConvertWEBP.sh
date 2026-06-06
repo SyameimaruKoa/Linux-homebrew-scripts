@@ -3,7 +3,7 @@
 # ヘルプメッセージを表示する関数
 show_help() {
     cat <<EOF
-Usage: $(basename "$0")
+Usage: $(basename "$0") [Options]
 
 Description:
     カレントディレクトリにある画像ファイル (jpg, jpeg, png, bmp) をWebP形式に変換します。
@@ -11,15 +11,22 @@ Description:
     変換品質はスクリプト内で quality=70 に設定されています。
 
 Options:
-    -h, --help    このヘルプメッセージを表示して終了します。
+    -h, --help      このヘルプメッセージを表示して終了します。
+    -l, --lossless  ロスレス圧縮（可逆圧縮）モードで変換します。
 EOF
 }
 
-# -h または --help が引数として渡された場合にヘルプを表示
-if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
-    show_help
-    exit 0
-fi
+lossless_opt=0
+
+# 引数の解析
+for arg in "$@"; do
+    if [[ "$arg" == "-h" ]] || [[ "$arg" == "--help" ]]; then
+        show_help
+        exit 0
+    elif [[ "$arg" == "-l" ]] || [[ "$arg" == "--lossless" ]]; then
+        lossless_opt=1
+    fi
+done
 
 require_commands() {
     local missing=0
@@ -74,9 +81,15 @@ find . -maxdepth 1 -iname "$filePattern1" \
             echo "アウトプットファイル名：$outputfile"
             echo "────────────────────────────────────────"
             #magick
-            convert -quality $quality "$fname" "$outputfile" &&
-                touch -cr "$fname" "$outputfile" &&
-                rm "$fname"
+            if [ "$lossless_opt" -eq 1 ]; then
+                convert -define webp:lossless=true -quality $quality "$fname" "$outputfile" &&
+                    touch -cr "$fname" "$outputfile" &&
+                    rm "$fname"
+            else
+                convert -quality $quality "$fname" "$outputfile" &&
+                    touch -cr "$fname" "$outputfile" &&
+                    rm "$fname"
+            fi
         fi
     done
 
