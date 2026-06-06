@@ -156,7 +156,7 @@ chmod +x *.sh
 - 内容: 指定拡張子の動画を HEVC（Intel QSV: hevc_qsv）で一括エンコード。既に HEVC のファイルはスキップ。メタデータを保持し、元ファイルは削除。
 - 使い方: `./ffmpegbulkEncode.sh <拡張子> [出力フォルダ]`（例: `mov ffmpeg`）。`-h`/`--help` で説明。
 - 依存: ffmpeg, ffprobe（QSV 利用環境を推奨）。
-- 備考: 一時フォルダに `/mnt/ramdisk/ffmpeg` があれば利用（なければ `/tmp/ffmpeg`）。終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
+- 備考: 一時フォルダに `/mnt/ramdisk/ffmpeg` があれば利用（なければ `/tmp/ffmpeg`）。終了時に [Koa_Discord_Message.sh](Koa_Discord_Message.sh) で通知。
 
 ### [File-All-deletion.sh](File-All-deletion.sh)
 
@@ -190,7 +190,7 @@ chmod +x *.sh
 - 内容: 指定拡張子の動画のうち HEVC でないものを出力フォルダへ移動（HEVC のものはスキップ）。
 - 使い方: `./h264Move.sh <拡張子> [出力フォルダ]`（デフォルト `Move`）。`-h`/`--help`。
 - 依存: ffprobe, bash。
-- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
+- 備考: 終了時に [Koa_Discord_Message.sh](Koa_Discord_Message.sh) で通知。
 
 ### [HandBrake-Build.sh](HandBrake-Build.sh)
 
@@ -203,13 +203,13 @@ chmod +x *.sh
 - 内容: カレントの jpg/jpeg/png/bmp を WebP（quality=70）へ変換し、元ファイルを削除。タイムスタンプ維持。
 - 使い方: 引数なしで実行。`-h`/`--help` で説明。
 - 依存: ImageMagick（convert）。
-- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
+- 備考: 終了時に [Koa_Discord_Message.sh](Koa_Discord_Message.sh) で通知。
 
 ### [ImgConvert180daysago-tast.sh](ImgConvert180daysago-tast.sh)
 
 - 内容: カレントで 180 日以上前更新の jpg を抽出し、`ls180.txt` に追記。全ファイル一覧は `lsフル.txt` に保存（変換は行わないテスト版）。
 - 使い方: 引数なし。`-h`/`--help` で説明。
-- 備考: 終了時に [koa_Discord_Message.sh](koa_Discord_Message.sh) で通知。
+- 備考: 終了時に [Koa_Discord_Message.sh](Koa_Discord_Message.sh) で通知。
 
 ### [ImgConvert180daysago.sh](ImgConvert180daysago.sh)
 
@@ -293,7 +293,7 @@ chmod +x script.sh
 - 破壊的操作: `File-All-deletion.sh` は復元不能な削除を行います。実行前に十分な確認を。
 - 元ファイル削除: 画像/動画変換系は変換後に元ファイルを削除します（スクリプト本文参照）。
 - 権限: `SETUP.SH`, `Set-GUI_Ubuntu.sh`, `HandBrake-Build.sh`, `zfs_converter.sh` などは `sudo` が必要です。
-- 外部通知: 一部スクリプトは [koa_Discord_Message.sh](koa_Discord_Message.sh) で Discord Webhook 通知を行います。`.env` の設定が必要です。
+- 外部通知: 一部スクリプトは [Koa_Discord_Message.sh](Koa_Discord_Message.sh) で Discord Webhook 通知を行います。`.env` の設定が必要です。
 - 動作確認: ディストリや環境差分により挙動が異なる場合があります。まずはテスト用ディレクトリで実行してください。
 
 ## 貢献・ライセンス

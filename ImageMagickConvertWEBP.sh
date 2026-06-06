@@ -105,4 +105,4 @@ find . -maxdepth 1 -iname "$filePattern1" \
         fi
     done
 
-koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
+Koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
