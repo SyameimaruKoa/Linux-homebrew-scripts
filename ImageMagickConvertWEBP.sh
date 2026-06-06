@@ -1,3 +1,4 @@
+```bash
 #!/bin/bash
 
 # ヘルプメッセージを表示する関数
@@ -9,10 +10,11 @@ Description:
     カレントディレクトリにある画像ファイル (jpg, jpeg, png, bmp) をWebP形式に変換します。
     変換後、元のファイルは削除されます。
     変換品質はスクリプト内で quality=70 に設定されています。
+    ※JPG/JPEGファイルはロスレスオプションを無視し、通常変換されます。
 
 Options:
     -h, --help      このヘルプメッセージを表示して終了します。
-    -l, --lossless  ロスレス圧縮（可逆圧縮）モードで変換します。
+    -l, --lossless  PNGおよびBMPファイルをロスレス圧縮（可逆圧縮）モードで変換します。
 EOF
 }
 
@@ -41,7 +43,7 @@ require_commands() {
     fi
 }
 
-require_commands convert find
+require_commands convert find tr
 
 current_dir=$(pwd)
 
@@ -76,12 +78,18 @@ find . -maxdepth 1 -iname "$filePattern1" \
                 fileNum=$(expr $fileNum + 1)
                 outputfile=${outputfile/.webp/}_${fileNum}.$output_extension
             done
+            
+            # 拡張子を取得して小文字化
+            ext="${fname##*.}"
+            ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+            
             echo "───────────────ファイル情報───────────────"
             echo "インプットファイル名：$fname"
             echo "アウトプットファイル名：$outputfile"
             echo "────────────────────────────────────────"
+            
             #magick
-            if [ "$lossless_opt" -eq 1 ]; then
+            if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "png" ] || [ "$ext_lower" = "bmp" ]; }; then
                 convert -define webp:lossless=true -quality $quality "$fname" "$outputfile" &&
                     touch -cr "$fname" "$outputfile" &&
                     rm "$fname"
@@ -94,3 +102,5 @@ find . -maxdepth 1 -iname "$filePattern1" \
     done
 
 koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
+
+```
