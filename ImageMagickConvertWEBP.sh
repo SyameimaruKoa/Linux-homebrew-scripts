@@ -1,4 +1,3 @@
-```bash
 #!/bin/bash
 
 # ヘルプメッセージを表示する関数
@@ -10,11 +9,10 @@ Description:
     カレントディレクトリにある画像ファイル (jpg, jpeg, png, bmp) をWebP形式に変換します。
     変換後、元のファイルは削除されます。
     変換品質はスクリプト内で quality=70 に設定されています。
-    ※JPG/JPEGファイルはロスレスオプションを無視し、通常変換されます。
 
 Options:
     -h, --help      このヘルプメッセージを表示して終了します。
-    -l, --lossless  PNGおよびBMPファイルをロスレス圧縮（可逆圧縮）モードで変換します。
+    -l, --lossless  PNGおよびBMPファイルのみを対象とし、ロスレス圧縮（可逆圧縮）モードで変換します。（JPG/JPEGはスキップされます）
 EOF
 }
 
@@ -83,6 +81,12 @@ find . -maxdepth 1 -iname "$filePattern1" \
             ext="${fname##*.}"
             ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
             
+            # ロスレスモード時、非可逆圧縮フォーマットはスキップ
+            if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "jpg" ] || [ "$ext_lower" = "jpeg" ]; }; then
+                echo "$fname は非可逆圧縮フォーマットのためスキップします"
+                continue
+            fi
+            
             echo "───────────────ファイル情報───────────────"
             echo "インプットファイル名：$fname"
             echo "アウトプットファイル名：$outputfile"
@@ -102,5 +106,3 @@ find . -maxdepth 1 -iname "$filePattern1" \
     done
 
 koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
-
-```
