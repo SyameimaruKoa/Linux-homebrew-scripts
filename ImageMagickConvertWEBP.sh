@@ -41,7 +41,7 @@ require_commands() {
     fi
 }
 
-require_commands convert find tr
+require_commands convert cwebp find tr
 
 current_dir=$(pwd)
 
@@ -92,13 +92,13 @@ find . -maxdepth 1 -iname "$filePattern1" \
             echo "アウトプットファイル名：$outputfile"
             echo "────────────────────────────────────────"
             
-            #magick
+            #magick & cwebp
             if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "png" ] || [ "$ext_lower" = "bmp" ]; }; then
-                convert -define webp:lossless=true -define webp:thread-level=1 -quality $quality "$fname" "$outputfile" &&
+                cwebp -lossless -q $quality -mt -metadata all "$fname" -o "$outputfile" &&
                     touch -cr "$fname" "$outputfile" &&
                     rm "$fname"
             else
-                convert -define webp:thread-level=1-quality $quality "$fname" "$outputfile" &&
+                convert -define webp:thread-level=1 -quality $quality "$fname" "$outputfile" &&
                     touch -cr "$fname" "$outputfile" &&
                     rm "$fname"
             fi
