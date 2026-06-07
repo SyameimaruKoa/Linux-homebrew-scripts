@@ -94,11 +94,11 @@ find . -maxdepth 1 -iname "$filePattern1" \
             
             #magick
             if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "png" ] || [ "$ext_lower" = "bmp" ]; }; then
-                convert -define webp:lossless=true -quality $quality "$fname" "$outputfile" &&
+                convert -define webp:lossless=true -define webp:thread-level=1 -quality $quality "$fname" "$outputfile" &&
                     touch -cr "$fname" "$outputfile" &&
                     rm "$fname"
             else
-                convert -quality $quality "$fname" "$outputfile" &&
+                convert -define webp:thread-level=1-quality $quality "$fname" "$outputfile" &&
                     touch -cr "$fname" "$outputfile" &&
                     rm "$fname"
             fi
