@@ -41,7 +41,8 @@ require_commands() {
     fi
 }
 
-require_commands convert cwebp find tr
+# 必須コマンドに xargs と nproc を追加
+require_commands convert cwebp find tr xargs nproc
 
 current_dir=$(pwd)
 
@@ -60,49 +61,68 @@ filePattern2="*.jpeg"
 filePattern3="*.png"
 filePattern4="*.bmp"
 
+# ---------------------------------------------------------
+# 並列処理のために while read 内の処理を関数として定義する
+# ---------------------------------------------------------
+process_image() {
+    local fname="$1"
+    local lossless_opt="$2"
+    local quality="$3"
+    local output_extension="$4"
+
+    if [ "${fname}" = . ]; then
+        echo 処理を始めます
+        return
+    fi
+
+    echo "$fname" | grep -q "^/" && fname="."$fname
+    
+    # 拡張子を除いたベース名を取得
+    local base="${fname%.*}"
+    local outputfile="${base}.$output_extension"
+    local fileNum=0
+    
+    # 安全な重複チェック処理に変更
+    while [ -e "$outputfile" ]; do
+        fileNum=$((fileNum + 1))
+        outputfile="${base}_${fileNum}.$output_extension"
+    done
+    
+    # 拡張子を取得して小文字化
+    local ext="${fname##*.}"
+    local ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+    
+    # ロスレスモード時、非可逆圧縮フォーマットはスキップ
+    if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "jpg" ] || [ "$ext_lower" = "jpeg" ]; }; then
+        echo "$fname は非可逆圧縮フォーマットのためスキップします"
+        return
+    fi
+    
+    echo "───────────────ファイル情報───────────────"
+    echo "インプットファイル名：$fname"
+    echo "アウトプットファイル名：$outputfile"
+    echo "────────────────────────────────────────"
+    
+    #magick & cwebp
+    if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "png" ] || [ "$ext_lower" = "bmp" ]; }; then
+        # 並列時にログが混ざらないよう -quiet を付与
+        cwebp -quiet -lossless -q $quality -mt -metadata all "$fname" -o "$outputfile" &&
+            touch -cr "$fname" "$outputfile" &&
+            rm "$fname"
+    else
+        convert -define webp:thread-level=1 -quality $quality "$fname" "$outputfile" &&
+            touch -cr "$fname" "$outputfile" &&
+            rm "$fname"
+    fi
+}
+# サブプロセス（xargs）から呼び出せるように関数をエクスポート
+export -f process_image
+
+# while read の代わりに xargs -P を用いて並列実行する
 find . -maxdepth 1 -iname "$filePattern1" \
     -or -iname "$filePattern2" \
     -or -iname "$filePattern3" \
     -or -iname "$filePattern4" |
-    while read -r fname; do
-        if [ "${fname}" = . ]; then
-            echo 処理を始めます
-        else
-            echo "$fname" | grep -q "^/" && fname="."$fname
-            outputfile="${fname%.*}.$output_extension"
-            fileNum=0
-            #while ls | grep -w "${outputfile##*/}" >/dev/null; do
-            while ls | grep -F -w "${outputfile##*/}" >/dev/null; do
-                fileNum=$(expr $fileNum + 1)
-                outputfile=${outputfile/.webp/}_${fileNum}.$output_extension
-            done
-            
-            # 拡張子を取得して小文字化
-            ext="${fname##*.}"
-            ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
-            
-            # ロスレスモード時、非可逆圧縮フォーマットはスキップ
-            if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "jpg" ] || [ "$ext_lower" = "jpeg" ]; }; then
-                echo "$fname は非可逆圧縮フォーマットのためスキップします"
-                continue
-            fi
-            
-            echo "───────────────ファイル情報───────────────"
-            echo "インプットファイル名：$fname"
-            echo "アウトプットファイル名：$outputfile"
-            echo "────────────────────────────────────────"
-            
-            #magick & cwebp
-            if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "png" ] || [ "$ext_lower" = "bmp" ]; }; then
-                cwebp -lossless -q $quality -mt -metadata all "$fname" -o "$outputfile" &&
-                    touch -cr "$fname" "$outputfile" &&
-                    rm "$fname"
-            else
-                convert -define webp:thread-level=1 -quality $quality "$fname" "$outputfile" &&
-                    touch -cr "$fname" "$outputfile" &&
-                    rm "$fname"
-            fi
-        fi
-    done
+    xargs -d '\n' -P $(nproc) -I {} bash -c 'process_image "$@"' _ {} "$lossless_opt" "$quality" "$output_extension"
 
 Koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
