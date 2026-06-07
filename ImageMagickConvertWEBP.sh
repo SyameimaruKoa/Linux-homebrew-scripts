@@ -6,7 +6,7 @@ show_help() {
 Usage: $(basename "$0") [Options]
 
 Description:
-    カレントディレクトリにある画像ファイル (jpg, jpeg, png, bmp) をWebP形式に変換します。
+    カレントディレクトリ以下の画像ファイル (jpg, jpeg, png, bmp) を再帰的に検索し、WebP形式に変換します。
     変換後、元のファイルは削除されます。
     変換品質はスクリプト内で quality=70 に設定されています。
 
@@ -82,7 +82,7 @@ process_image() {
     local outputfile="${base}.$output_extension"
     local fileNum=0
     
-    # 安全な重複チェック処理に変更
+    # 安全な重複チェック処理
     while [ -e "$outputfile" ]; do
         fileNum=$((fileNum + 1))
         outputfile="${base}_${fileNum}.$output_extension"
@@ -118,11 +118,11 @@ process_image() {
 # サブプロセス（xargs）から呼び出せるように関数をエクスポート
 export -f process_image
 
-# while read の代わりに xargs -P を用いて並列実行する
-find . -maxdepth 1 -iname "$filePattern1" \
+# maxdepthを取り払い、グループ化して再帰処理に対応
+find . -type f \( -iname "$filePattern1" \
     -or -iname "$filePattern2" \
     -or -iname "$filePattern3" \
-    -or -iname "$filePattern4" |
+    -or -iname "$filePattern4" \) |
     xargs -d '\n' -P $(nproc) -I {} bash -c 'process_image "$@"' _ {} "$lossless_opt" "$quality" "$output_extension"
 
 Koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
