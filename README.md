@@ -147,9 +147,13 @@ chmod +x *.sh
 ### [Discord_Message.sh](Discord_Message.sh)
 
 - 内容: `.env`（同ディレクトリ）から `DISCORD_WEBHOOK_URL` を読み込み、引数のメッセージを Discord Webhook へ送信。
-- 使い方: `./Discord_Message.sh メッセージ...`（複数引数は改行連結）。`-h`/`--help` で説明。
+- 使い方: `./Discord_Message.sh [オプション] メッセージ...`（複数引数は改行連結）。`-h`/`--help` で説明。
+  - `-m`, `--mention` オプションを付けると、メッセージの先頭にメンションを自動で追加します。
+  - メッセージ本文中に `@me` または `<@me>` がある場合、自動的に設定された自分のDiscordユーザーIDに置換されます。
+  - `-d`, `--dry-run` オプションで、実際には送信せず送信内容のプレビューを確認できます。
 - 依存: curl。
 - 設定: `.env` に `DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."` を記載。
+  - メンション用のIDは `.env` の `DISCORD_USER_ID`、もしくは Git のグローバル設定 `git config --global discord.userid` に保存して利用できます。
 
 ### [ffmpegbulkEncode.sh](ffmpegbulkEncode.sh)
 
@@ -246,8 +250,11 @@ chmod +x *.sh
 ### [SETUP.SH](SETUP.SH)
 
 - 内容: このディレクトリにある `.sh` へのシンボリックリンクを `/usr/local/bin` に展開・削除するインストーラ。リンク名は `Koa_*.sh`。
+  - インストール時、`.env` ファイルが存在しない場合に、GitHub CLI (gh) を使って Secret Gist から自動的に設定ファイルを復元・ダウンロードする機能があります。
 - 使い方: `sudo ./SETUP.SH -i`（インストール）、`sudo ./SETUP.SH -u`（アンインストール）、`-h`/`--help`。
-- 依存: readlink, find, ln。`sudo` が必要。
+- 依存: readlink, find, ln, gh(オプション)。`sudo` が必要。
+- 備考:
+  - 自分の GitHub アカウントに `.env` の内容を保存した Secret Gist を作成し、その ID を初回インストール時に入力すると、次回以降や別環境へのクローン時には完全に自動で `.env` が復元され、Discord Webhook と Discord ユーザーID が自動設定されます。（Gist ID は Git グローバル設定 `discord.envgist` に保存されます）
 
 ### [update_mkv-webm_stats.sh](update_mkv-webm_stats.sh)
 

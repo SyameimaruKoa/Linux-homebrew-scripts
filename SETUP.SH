@@ -64,8 +64,90 @@ self_name=$(basename "$0")
 # readlink -f でシンボリックリンクを解決し、dirnameでディレクトリパスを取得
 script_dir=$(dirname "$(readlink -f "$0")")
 
+# --- .env ファイルのセットアップ処理 ---
+setup_env_file() {
+    local env_file="$script_dir/.env"
+    
+    # すでに .env ファイルが存在する場合は何もしない
+    if [ -f "$env_file" ]; then
+        return 0
+    fi
+
+    # SUDO_USER が設定されているか確認 (sudo 経由で実行された場合の一般ユーザー)
+    local run_user="$SUDO_USER"
+    if [ -z "$run_user" ]; then
+        run_user=$(whoami)
+    fi
+
+    # 一般ユーザー権限で gh コマンドがインストールされているか確認
+    if ! sudo -u "$run_user" command -v gh >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # gh のログイン状態を確認
+    if ! sudo -u "$run_user" gh auth status >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "--------------------------------------------------"
+    echo "設定ファイル (.env) が見つかりません。"
+    echo "GitHub Secret Gist から自動的に設定ファイルを復元できます。"
+    echo "--------------------------------------------------"
+
+    # Git グローバル設定から Gist ID を取得
+    local gist_id
+    gist_id=$(sudo -u "$run_user" git config --global discord.envgist 2>/dev/null)
+
+    if [ -z "$gist_id" ]; then
+        echo "Git グローバル設定に自動復元用の Gist ID が登録されていません。"
+        read -p "Secret Gist ID (または URL) を入力してください (スキップするには Enter): " input_gist
+        if [ -z "$input_gist" ]; then
+            echo "自動復元をスキップします。"
+            echo "--------------------------------------------------"
+            return 0
+        fi
+        # URLが入力された場合、ID部分(32桁以上の16進数)だけを抽出する
+        gist_id=$(echo "$input_gist" | grep -oE '[a-fA-F0-9]{32,}' || echo "$input_gist")
+        
+        # Git グローバル設定に保存
+        sudo -u "$run_user" git config --global discord.envgist "$gist_id"
+        echo "Gist ID を Git グローバル設定 (discord.envgist) に保存しました。"
+    fi
+
+    echo "Secret Gist ($gist_id) から .env ファイルをダウンロード中..."
+    
+    # gh gist view で取得し、一時ファイルに書き出してから移動 (権限設定のため)
+    local tmp_env="/tmp/env_restore_$$"
+    if sudo -u "$run_user" gh gist view "$gist_id" -f .env > "$tmp_env" 2>/dev/null || sudo -u "$run_user" gh gist view "$gist_id" > "$tmp_env" 2>/dev/null; then
+        mv "$tmp_env" "$env_file"
+        chmod 600 "$env_file"
+        chown "$run_user:$run_user" "$env_file"
+        echo "-> .env ファイルを正常に復元しました！"
+        
+        # DiscordユーザーIDがグローバルに登録されていなければ登録を促す
+        export $(grep -v '^#' "$env_file" | grep -v '^$' | xargs)
+        if [ -n "$DISCORD_USER_ID" ]; then
+            local current_git_uid
+            current_git_uid=$(sudo -u "$run_user" git config --global discord.userid 2>/dev/null)
+            if [ -z "$current_git_uid" ]; then
+                sudo -u "$run_user" git config --global discord.userid "$DISCORD_USER_ID"
+                echo "-> DiscordユーザーID ($DISCORD_USER_ID) を Git グローバル設定 (discord.userid) に保存しました。"
+            fi
+        fi
+    else
+        rm -f "$tmp_env"
+        echo "エラー: Gist からの復元に失敗しました。アクセス権または Gist ID を確認してください。"
+        echo "※登録されている Gist ID を削除するには以下を実行してください:"
+        echo "  git config --global --unset discord.envgist"
+    fi
+    echo "--------------------------------------------------"
+}
+
 # --- インストール処理 ---
 install_links() {
+    # --- .env セットアップ ---
+    setup_env_file
+
     # --- クリーンアップ処理 ---
     echo "最初に、管理下から削除されたスクリプトの古いリンクをクリーンアップします..."
     cleaned_count=0
