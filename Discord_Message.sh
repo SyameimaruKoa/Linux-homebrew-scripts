@@ -165,15 +165,20 @@ MESSAGE="${MESSAGE//$'\r'/\\r}"
 # 5. タブ (\t) -> (\t)
 MESSAGE="${MESSAGE//$'\t'/\\t}"
 
+# ホスト名の取得とエスケープ（Webhookのユーザー名に指定するため）
+HOST_NAME=$(hostname 2>/dev/null || echo "$HOSTNAME")
+HOST_NAME="${HOST_NAME//\\/\\\\}"
+HOST_NAME="${HOST_NAME//\"/\\\"}"
+
 if [ "$DRY_RUN" = true ]; then
     echo "--- DRY RUN ---"
     echo "Webhook URL: $DISCORD_WEBHOOK_URL"
-    echo "Payload: {\"content\": \"$MESSAGE\"}"
+    echo "Payload: {\"content\": \"$MESSAGE\", \"username\": \"$HOST_NAME\"}"
 else
     # curlコマンドでDiscordに送信じゃ
     curl \
         -X POST \
         -H "Content-Type: application/json" \
-        -d "{\"content\": \"$MESSAGE\"}" \
+        -d "{\"content\": \"$MESSAGE\", \"username\": \"$HOST_NAME\"}" \
         "$DISCORD_WEBHOOK_URL"
 fi
