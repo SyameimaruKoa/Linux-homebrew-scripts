@@ -69,35 +69,75 @@ script_dir=$(dirname "$(readlink -f "$0")")
 backup_to_gist() {
     local env_file="$1"
     local run_user="$2"
+    local user_home="$3"
+    
+    # 引数が足りない場合のフォールバック
+    if [ -z "$user_home" ]; then
+        user_home=$(getent passwd "$run_user" | cut -d: -f6)
+        if [ -z "$user_home" ]; then
+            user_home="$HOME"
+        fi
+    fi
     local gist_url=""
     local use_gh=false
 
     # 一般ユーザー権限で gh コマンドがインストールされ、かつ gh にログインしている場合のみ自動作成を試みる
-    if sudo -u "$run_user" command -v gh >/dev/null 2>&1 && sudo -u "$run_user" gh auth status >/dev/null 2>&1; then
+    if sudo -u "$run_user" env HOME="$user_home" command -v gh >/dev/null 2>&1 && \
+       sudo -u "$run_user" env HOME="$user_home" gh auth status >/dev/null 2>&1; then
         use_gh=true
     fi
 
     if [ "$use_gh" = true ]; then
         echo "GitHub CLI (gh) を使用して Secret Gist を自動作成中..."
-        # リポジトリ用とわかるようにファイル名を .env.homebrew-scripts に指定して標準入力から作成
-        gist_url=$(sudo -u "$run_user" gh gist create -f ".env.homebrew-scripts" -d "Discord environment variables for homebrew-scripts" < "$env_file" 2>/dev/null)
+        gist_url=$(sudo -u "$run_user" env HOME="$user_home" gh gist create -f ".env.homebrew-scripts" -d "Discord environment variables for homebrew-scripts" < "$env_file" 2>/dev/null)
         
         if [ -n "$gist_url" ]; then
             echo "-> Secret Gist の自動作成に成功しました！"
             echo "   URL: $gist_url"
             local gist_id
             gist_id=$(echo "$gist_url" | grep -oE '[a-fA-F0-9]{32,}' || echo "$gist_url")
-            sudo -u "$run_user" git config --global discord.envgist "$gist_id"
+            sudo -u "$run_user" env HOME="$user_home" git config --global discord.envgist "$gist_id"
             echo "-> Gist ID を Git グローバル設定 (discord.envgist) に保存しました。"
             return 0
         else
             echo "警告: gh コマンドによる Gist の自動作成に失敗しました。"
         fi
     else
-        echo "GitHub CLI (gh) がインストールされていないか、ログインしていません。"
+        echo "GitHub CLI (gh) がインストールされていないか、ログインしていません（または sudo のため認証情報にアクセスできません）。"
     fi
 
-    # 手動作成の案内
+    # gh があるがログインしていない、または認証エラーの場合の手動トークン入力フロー
+    if sudo -u "$run_user" env HOME="$user_home" command -v gh >/dev/null 2>&1; then
+        echo "--------------------------------------------------"
+        echo "GitHub CLI (gh) はインストールされています。"
+        echo "GitHub のパーソナルアクセストークン (PAT) を使用して Gist を作成できます。"
+        echo "※ トークンには 'gist' スコープが必要です。"
+        echo "--------------------------------------------------"
+        local use_pat=""
+        read -p "GitHub パーソナルアクセストークン (PAT) を入力して Gist を作成しますか？ (y/N): " use_pat
+        if [[ "$use_pat" =~ ^[Yy]$ ]]; then
+            local pat_token=""
+            read -s -p "GitHub トークンを入力してください: " pat_token
+            echo "" # 改行
+            if [ -n "$pat_token" ]; then
+                echo "トークンを使用して Secret Gist を作成中..."
+                gist_url=$(sudo -u "$run_user" env HOME="$user_home" GH_TOKEN="$pat_token" gh gist create -f ".env.homebrew-scripts" -d "Discord environment variables for homebrew-scripts" < "$env_file" 2>/dev/null)
+                if [ -n "$gist_url" ]; then
+                    echo "-> Secret Gist の作成に成功しました！"
+                    echo "   URL: $gist_url"
+                    local gist_id
+                    gist_id=$(echo "$gist_url" | grep -oE '[a-fA-F0-9]{32,}' || echo "$gist_url")
+                    sudo -u "$run_user" env HOME="$user_home" git config --global discord.envgist "$gist_id"
+                    echo "-> Gist ID を Git グローバル設定 (discord.envgist) に保存しました。"
+                    return 0
+                else
+                    echo "エラー: トークンを使用した Gist の作成に失敗しました。"
+                fi
+            fi
+        fi
+    fi
+
+    # 完全に手動で作成する場合の案内
     echo "--------------------------------------------------"
     echo "手動で Secret Gist を作成し、その URL または ID を登録してください。"
     echo "手順:"
@@ -116,7 +156,7 @@ backup_to_gist() {
     if [ -n "$input_gist" ]; then
         local gist_id
         gist_id=$(echo "$input_gist" | grep -oE '[a-fA-F0-9]{32,}' || echo "$input_gist")
-        sudo -u "$run_user" git config --global discord.envgist "$gist_id"
+        sudo -u "$run_user" env HOME="$user_home" git config --global discord.envgist "$gist_id"
         echo "-> Gist ID を Git グローバル設定 (discord.envgist) に保存しました。"
     else
         echo "Gist の登録をスキップしました。"
@@ -138,79 +178,139 @@ setup_env_file() {
         run_user=$(whoami)
     fi
 
+    local user_home
+    user_home=$(getent passwd "$run_user" | cut -d: -f6)
+    if [ -z "$user_home" ]; then
+        user_home="$HOME"
+    fi
+
     local restore_success=false
 
     # Git グローバル設定から Gist ID を取得
     local gist_id
-    gist_id=$(sudo -u "$run_user" git config --global discord.envgist 2>/dev/null)
+    gist_id=$(sudo -u "$run_user" env HOME="$user_home" git config --global discord.envgist 2>/dev/null)
 
     # 一般ユーザー権限で gh コマンドがインストールされ、かつ gh にログインしている場合のみ Gist 復元を試みる
     local gh_available=false
-    if sudo -u "$run_user" command -v gh >/dev/null 2>&1 && sudo -u "$run_user" gh auth status >/dev/null 2>&1; then
+    if sudo -u "$run_user" env HOME="$user_home" command -v gh >/dev/null 2>&1 && \
+       sudo -u "$run_user" env HOME="$user_home" gh auth status >/dev/null 2>&1; then
         gh_available=true
     fi
 
-    if [ "$gh_available" = true ]; then
+    # Gist ID が登録されていない場合、入力を促す
+    if [ -z "$gist_id" ]; then
         echo "--------------------------------------------------"
         echo "設定ファイル (.env) が見つかりません。"
         echo "GitHub Secret Gist から自動的に設定ファイルを復元できます。"
         echo "--------------------------------------------------"
-
-        if [ -z "$gist_id" ]; then
-            echo "Git グローバル設定に自動復元用の Gist ID が登録されていません。"
-            read -p "Secret Gist ID (または URL) を入力してください (スキップして新規登録する場合は Enter): " input_gist
-            if [ -n "$input_gist" ]; then
-                # URLが入力された場合、ID部分(32桁以上の16進数)だけを抽出する
-                gist_id=$(echo "$input_gist" | grep -oE '[a-fA-F0-9]{32,}' || echo "$input_gist")
-                
-                # Git グローバル設定に保存
-                sudo -u "$run_user" git config --global discord.envgist "$gist_id"
-                echo "Gist ID を Git グローバル設定 (discord.envgist) に保存しました。"
-            fi
-        fi
-
-        if [ -n "$gist_id" ]; then
-            echo "Secret Gist ($gist_id) から .env ファイルをダウンロード中..."
+        local input_gist=""
+        read -p "すでに作成済みの Secret Gist ID (または URL) があれば入力してください (スキップして新規登録する場合は Enter): " input_gist
+        if [ -n "$input_gist" ]; then
+            # URLが入力された場合、ID部分(32桁以上の16進数)だけを抽出する
+            gist_id=$(echo "$input_gist" | grep -oE '[a-fA-F0-9]{32,}' || echo "$input_gist")
             
-            # gh gist view で取得し、一時ファイルに書き出してから移動 (権限設定のため)
-            # 新しいファイル名 (.env.homebrew-scripts) を優先し、なければ古い .env または単一ファイルを試みる
+            # Git グローバル設定に保存
+            sudo -u "$run_user" env HOME="$user_home" git config --global discord.envgist "$gist_id"
+            echo "Gist ID を Git グローバル設定 (discord.envgist) に保存しました。"
+        fi
+    fi
+
+    if [ -n "$gist_id" ]; then
+        echo "Secret Gist ($gist_id) から .env ファイルの復元を試みます..."
+
+        if [ "$gh_available" = true ]; then
+            # 通常の自動復元 (ghが使えてログイン済み)
+            echo "GitHub CLI (gh) を使用してダウンロード中..."
             local tmp_env="/tmp/env_restore_$$"
-            if sudo -u "$run_user" gh gist view "$gist_id" -f .env.homebrew-scripts > "$tmp_env" 2>/dev/null || \
-               sudo -u "$run_user" gh gist view "$gist_id" -f .env > "$tmp_env" 2>/dev/null || \
-               sudo -u "$run_user" gh gist view "$gist_id" > "$tmp_env" 2>/dev/null; then
+            if sudo -u "$run_user" env HOME="$user_home" gh gist view "$gist_id" -f .env.homebrew-scripts > "$tmp_env" 2>/dev/null || \
+               sudo -u "$run_user" env HOME="$user_home" gh gist view "$gist_id" -f .env > "$tmp_env" 2>/dev/null || \
+               sudo -u "$run_user" env HOME="$user_home" gh gist view "$gist_id" > "$tmp_env" 2>/dev/null; then
                 mv "$tmp_env" "$env_file"
                 chmod 600 "$env_file"
                 chown "$run_user:$run_user" "$env_file"
                 echo "-> .env ファイルを正常に復元しました！"
                 restore_success=true
-                
-                # DiscordユーザーIDがグローバルに登録されていなければ登録を促す
-                export $(grep -v '^#' "$env_file" | grep -v '^$' | xargs)
-                if [ -n "$DISCORD_USER_ID" ]; then
-                    local current_git_uid
-                    current_git_uid=$(sudo -u "$run_user" git config --global discord.userid 2>/dev/null)
-                    if [ -z "$current_git_uid" ]; then
-                        sudo -u "$run_user" git config --global discord.userid "$DISCORD_USER_ID"
-                        echo "-> DiscordユーザーID ($DISCORD_USER_ID) を Git グローバル設定 (discord.userid) に保存しました。"
-                    fi
-                fi
             else
                 rm -f "$tmp_env"
-                echo "エラー: Gist からの復元に失敗しました。アクセス権または Gist ID を確認してください。"
-                echo "※登録されている Gist ID を削除するには以下を実行してください:"
-                echo "  git config --global --unset discord.envgist"
+                echo "警告: gh コマンドによる Gist からの自動復元に失敗しました。"
             fi
         fi
-        echo "--------------------------------------------------"
-    else
-        # gh が使えないが、すでに Gist ID が登録されている場合
-        if [ -n "$gist_id" ]; then
+
+        # 自動復元が失敗した、あるいは gh のログイン情報がない場合の手動/トークンフォールバック
+        if [ "$restore_success" = false ]; then
             echo "--------------------------------------------------"
-            echo "Git グローバル設定に Gist ID ($gist_id) が登録されていますが、"
-            echo "GitHub CLI (gh) が利用できない（未インストールまたは未ログイン）ため、自動復元できません。"
-            echo "手動で以下の URL から設定内容を取得し、.env ファイルとして保存してください:"
-            echo "URL: https://gist.github.com/$gist_id"
+            echo "GitHub CLI (gh) による自動復元ができません（未インストール、未ログイン、または権限の問題）。"
+            echo "以下のいずれかの方法で Gist から設定を復元できます："
+            echo "  1) GitHub パーソナルアクセストークン (PAT) を入力して gh でダウンロードする"
+            echo "  2) ブラウザで Gist を開き、その内容を手動でここに貼り付ける"
+            echo "  3) スキップして新規に設定ファイルを作成する"
             echo "--------------------------------------------------"
+            
+            local restore_choice=""
+            read -p "選択してください (1/2/3): " restore_choice
+
+            if [ "$restore_choice" = "1" ]; then
+                if sudo -u "$run_user" env HOME="$user_home" command -v gh >/dev/null 2>&1; then
+                    local pat_token=""
+                    read -s -p "GitHub パーソナルアクセストークン (PAT) を入力してください: " pat_token
+                    echo "" # 改行
+                    if [ -n "$pat_token" ]; then
+                        echo "トークンを使用して Secret Gist からダウンロード中..."
+                        local tmp_env="/tmp/env_restore_$$"
+                        if sudo -u "$run_user" env HOME="$user_home" GH_TOKEN="$pat_token" gh gist view "$gist_id" -f .env.homebrew-scripts > "$tmp_env" 2>/dev/null || \
+                           sudo -u "$run_user" env HOME="$user_home" GH_TOKEN="$pat_token" gh gist view "$gist_id" -f .env > "$tmp_env" 2>/dev/null || \
+                           sudo -u "$run_user" env HOME="$user_home" GH_TOKEN="$pat_token" gh gist view "$gist_id" > "$tmp_env" 2>/dev/null; then
+                            mv "$tmp_env" "$env_file"
+                            chmod 600 "$env_file"
+                            chown "$run_user:$run_user" "$env_file"
+                            echo "-> .env ファイルを正常に復元しました！"
+                            restore_success=true
+                        else
+                            rm -f "$tmp_env"
+                            echo "エラー: トークンを使用したダウンロードに失敗しました。"
+                        fi
+                    fi
+                else
+                    echo "エラー: GitHub CLI (gh) がインストールされていないため、トークンを使用したダウンロードは行えません。"
+                fi
+            elif [ "$restore_choice" = "2" ]; then
+                echo "--------------------------------------------------"
+                echo "手動貼り付け手順:"
+                echo "  1. ブラウザで以下の URL にアクセスします："
+                echo "     https://gist.github.com/$gist_id"
+                echo "  2. 表示された内容（DISCORD_WEBHOOK_URL など）をすべてコピーします。"
+                echo "  3. コピーした内容をここに貼り付け、最後に Ctrl+D を押してください。"
+                echo "--------------------------------------------------"
+                local tmp_env="/tmp/env_restore_$$"
+                cat > "$tmp_env"
+                if [ -s "$tmp_env" ]; then
+                    mv "$tmp_env" "$env_file"
+                    chmod 600 "$env_file"
+                    chown "$run_user:$run_user" "$env_file"
+                    echo "-> 貼り付けられた内容から .env ファイルを作成しました！"
+                    restore_success=true
+                else
+                    rm -f "$tmp_env"
+                    echo "エラー: 内容が空だったため、作成をスキップしました。"
+                fi
+            else
+                echo "Gist からの復元をスキップします。"
+            fi
+        fi
+
+        # 復元に成功した場合の Discord ユーザーIDの設定
+        if [ "$restore_success" = true ] && [ -f "$env_file" ]; then
+            # DiscordユーザーIDがグローバルに登録されていなければ登録を促す
+            local discord_uid
+            discord_uid=$(grep -E '^DISCORD_USER_ID=' "$env_file" | sed -E 's/^DISCORD_USER_ID=["'\'']?(.*)["'\'']?$/\1/')
+            if [ -n "$discord_uid" ]; then
+                local current_git_uid
+                current_git_uid=$(sudo -u "$run_user" env HOME="$user_home" git config --global discord.userid 2>/dev/null)
+                if [ -z "$current_git_uid" ]; then
+                    sudo -u "$run_user" env HOME="$user_home" git config --global discord.userid "$discord_uid"
+                    echo "-> DiscordユーザーID ($discord_uid) を Git グローバル設定 (discord.userid) に保存しました。"
+                fi
+            fi
         fi
     fi
 
@@ -245,7 +345,7 @@ EOF
 
         # Discord ユーザーIDが入力された場合、Git グローバル設定にも保存
         if [ -n "$input_userid" ]; then
-            sudo -u "$run_user" git config --global discord.userid "$input_userid"
+            sudo -u "$run_user" env HOME="$user_home" git config --global discord.userid "$input_userid"
             echo "-> DiscordユーザーID ($input_userid) を Git グローバル設定 (discord.userid) に保存しました。"
         fi
         echo "--------------------------------------------------"
@@ -254,7 +354,7 @@ EOF
         local backup_confirm=""
         read -p "作成した設定 (.env) を GitHub Secret Gist にバックアップして、次回以降の自動復元に利用しますか？ (y/N): " backup_confirm
         if [[ "$backup_confirm" =~ ^[Yy]$ ]]; then
-            backup_to_gist "$env_file" "$run_user"
+            backup_to_gist "$env_file" "$run_user" "$user_home"
         fi
     fi
 }
