@@ -255,6 +255,11 @@ chmod +x *.sh
 - 依存: readlink, find, ln, gh(オプション)。`sudo` が必要。
 - 備考:
   - 自分の GitHub アカウントに `.env.homebrew-scripts` という名前で `.env` の内容を保存した Secret Gist を作成し、その ID を初回インストール時に入力すると、次回以降や別環境へのクローン時には完全に自動で `.env` が復元され、Discord Webhook と Discord ユーザーID が自動設定されます。（Gist ID は Git グローバル設定 `discord.envgist` に保存されます）
+  - **【注意】** Linux環境において、`gh` にログインしているのにもかかわらず Gist の自動作成・復元が認識されない（`gh auth status` が失敗する）場合、`sudo` 経由での実行時にキーリング（`keyring`）にアクセスできないことが原因の可能性があります。その場合は、以下のコマンドを実行してセキュアストレージを無効化（ファイル保存に変更）し、再ログインしてからスクリプトを再実行してください。
+    ```bash
+    gh config set secure_auth false
+    gh auth login
+    ```
 
 ### [update_mkv-webm_stats.sh](update_mkv-webm_stats.sh)
 
