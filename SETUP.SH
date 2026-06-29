@@ -73,9 +73,12 @@ backup_to_gist() {
     
     # 引数が足りない場合のフォールバック
     if [ -z "$user_home" ]; then
-        user_home=$(getent passwd "$run_user" | cut -d: -f6)
-        if [ -z "$user_home" ]; then
-            user_home="$HOME"
+        user_home=$(eval echo "~$run_user")
+        if [ "$user_home" = "~$run_user" ] || [ -z "$user_home" ]; then
+            user_home=$(getent passwd "$run_user" | cut -d: -f6 2>/dev/null)
+            if [ -z "$user_home" ]; then
+                user_home="$HOME"
+            fi
         fi
     fi
     local gist_url=""
@@ -181,9 +184,12 @@ setup_env_file() {
     fi
 
     local user_home
-    user_home=$(getent passwd "$run_user" | cut -d: -f6)
-    if [ -z "$user_home" ]; then
-        user_home="$HOME"
+    user_home=$(eval echo "~$run_user")
+    if [ "$user_home" = "~$run_user" ] || [ -z "$user_home" ]; then
+        user_home=$(getent passwd "$run_user" | cut -d: -f6 2>/dev/null)
+        if [ -z "$user_home" ]; then
+            user_home="$HOME"
+        fi
     fi
 
     local restore_success=false
