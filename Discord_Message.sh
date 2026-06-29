@@ -100,13 +100,21 @@ fi
 # 受け取った全ての引数を改行でつないで一つのメッセージにするのじゃ
 MESSAGE=""
 for arg in "$@"; do
-    MESSAGE="$MESSAGE$arg\n"
+    MESSAGE="$MESSAGE$arg"$'\n'
 done
-MESSAGE="${MESSAGE%\\n}"
+MESSAGE="${MESSAGE%$'\n'}"
 
 # メッセージ内の特殊文字をJSONエスケープするのじゃ
-# バックスラッシュを先に、次にダブルクォートをエスケープ
-MESSAGE=$(printf '%s' "$MESSAGE" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+# 1. バックスラッシュ (\) -> (\\)
+MESSAGE="${MESSAGE//\\/\\\\}"
+# 2. ダブルクォート (") -> (\")
+MESSAGE="${MESSAGE//\"/\\\"}"
+# 3. 改行 (\n) -> (\n)
+MESSAGE="${MESSAGE//$'\n'/\\n}"
+# 4. キャリッジリターン (\r) -> (\r)
+MESSAGE="${MESSAGE//$'\r'/\\r}"
+# 5. タブ (\t) -> (\t)
+MESSAGE="${MESSAGE//$'\t'/\\t}"
 
 # curlコマンドでDiscordに送信じゃ
 curl \
