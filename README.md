@@ -254,7 +254,7 @@ chmod +x *.sh
 - 使い方: `sudo ./SETUP.SH -i`（インストール）、`sudo ./SETUP.SH -u`（アンインストール）、`-h`/`--help`。
 - 依存: readlink, find, ln, gh(オプション)。`sudo` が必要。
 - 備考:
-  - 自分の GitHub アカウントに `.env` の内容を保存した Secret Gist を作成し、その ID を初回インストール時に入力すると、次回以降や別環境へのクローン時には完全に自動で `.env` が復元され、Discord Webhook と Discord ユーザーID が自動設定されます。（Gist ID は Git グローバル設定 `discord.envgist` に保存されます）
+  - 自分の GitHub アカウントに `.env.homebrew-scripts` という名前で `.env` の内容を保存した Secret Gist を作成し、その ID を初回インストール時に入力すると、次回以降や別環境へのクローン時には完全に自動で `.env` が復元され、Discord Webhook と Discord ユーザーID が自動設定されます。（Gist ID は Git グローバル設定 `discord.envgist` に保存されます）
 
 ### [update_mkv-webm_stats.sh](update_mkv-webm_stats.sh)
 

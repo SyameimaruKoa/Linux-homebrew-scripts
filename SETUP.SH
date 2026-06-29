@@ -79,7 +79,8 @@ backup_to_gist() {
 
     if [ "$use_gh" = true ]; then
         echo "GitHub CLI (gh) を使用して Secret Gist を自動作成中..."
-        gist_url=$(sudo -u "$run_user" gh gist create "$env_file" -d "Discord environment variables for homebrew-scripts" 2>/dev/null)
+        # リポジトリ用とわかるようにファイル名を .env.homebrew-scripts に指定して標準入力から作成
+        gist_url=$(sudo -u "$run_user" gh gist create -f ".env.homebrew-scripts" -d "Discord environment variables for homebrew-scripts" < "$env_file" 2>/dev/null)
         
         if [ -n "$gist_url" ]; then
             echo "-> Secret Gist の自動作成に成功しました！"
@@ -101,7 +102,7 @@ backup_to_gist() {
     echo "手動で Secret Gist を作成し、その URL または ID を登録してください。"
     echo "手順:"
     echo "  1. ブラウザで https://gist.github.com/ にアクセスします。"
-    echo "  2. Filename including extension... に「.env」と入力します。"
+    echo "  2. Filename including extension... に「.env.homebrew-scripts」と入力します。"
     echo "  3. ファイルの内容として以下を貼り付けます:"
     echo "--------------------------------------------------"
     cat "$env_file"
@@ -172,8 +173,11 @@ setup_env_file() {
             echo "Secret Gist ($gist_id) から .env ファイルをダウンロード中..."
             
             # gh gist view で取得し、一時ファイルに書き出してから移動 (権限設定のため)
+            # 新しいファイル名 (.env.homebrew-scripts) を優先し、なければ古い .env または単一ファイルを試みる
             local tmp_env="/tmp/env_restore_$$"
-            if sudo -u "$run_user" gh gist view "$gist_id" -f .env > "$tmp_env" 2>/dev/null || sudo -u "$run_user" gh gist view "$gist_id" > "$tmp_env" 2>/dev/null; then
+            if sudo -u "$run_user" gh gist view "$gist_id" -f .env.homebrew-scripts > "$tmp_env" 2>/dev/null || \
+               sudo -u "$run_user" gh gist view "$gist_id" -f .env > "$tmp_env" 2>/dev/null || \
+               sudo -u "$run_user" gh gist view "$gist_id" > "$tmp_env" 2>/dev/null; then
                 mv "$tmp_env" "$env_file"
                 chmod 600 "$env_file"
                 chown "$run_user:$run_user" "$env_file"
