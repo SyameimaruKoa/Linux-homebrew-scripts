@@ -167,32 +167,83 @@ if [ "$MENTION" = true ]; then
     fi
 fi
 
-# メッセージ内の特殊文字をJSONエスケープするのじゃ
-# 1. バックスラッシュ (\) -> (\\)
-MESSAGE="${MESSAGE//\\/\\\\}"
-# 2. ダブルクォート (") -> (\")
-MESSAGE="${MESSAGE//\"/\\\"}"
-# 3. 改行 (\n) -> (\n)
-MESSAGE="${MESSAGE//$'\n'/\\n}"
-# 4. キャリッジリターン (\r) -> (\r)
-MESSAGE="${MESSAGE//$'\r'/\\r}"
-# 5. タブ (\t) -> (\t)
-MESSAGE="${MESSAGE//$'\t'/\\t}"
-
 # ホスト名の取得とエスケープ（Webhookのユーザー名に指定するため）
 HOST_NAME=$(hostname 2>/dev/null || echo "$HOSTNAME")
 HOST_NAME="${HOST_NAME//\\/\\\\}"
 HOST_NAME="${HOST_NAME//\"/\\\"}"
 
-if [ "$DRY_RUN" = true ]; then
-    echo "--- DRY RUN ---"
-    echo "Webhook URL: $DISCORD_WEBHOOK_URL"
-    echo "Payload: {\"content\": \"$MESSAGE\", \"username\": \"$HOST_NAME\"}"
+# 各チャンク（メッセージ分割された一部）を送信する関数
+send_chunk() {
+    local chunk_content="$1"
+
+    # メッセージ内の特殊文字をJSONエスケープするのじゃ
+    chunk_content="${chunk_content//\\/\\\\}"
+    chunk_content="${chunk_content//\"/\\\"}"
+    chunk_content="${chunk_content//$'\n'/\\n}"
+    chunk_content="${chunk_content//$'\r'/\\r}"
+    chunk_content="${chunk_content//$'\t'/\\t}"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo "--- DRY RUN ---"
+        echo "Webhook URL: $DISCORD_WEBHOOK_URL"
+        echo "Payload: {\"content\": \"$chunk_content\", \"username\": \"$HOST_NAME\"}"
+    else
+        # curlコマンドでDiscordに送信じゃ
+        curl \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"$chunk_content\", \"username\": \"$HOST_NAME\"}" \
+            "$DISCORD_WEBHOOK_URL"
+        
+        # 分割送信の場合にレートリミットを回避するため、少しスリープを入れるのじゃ
+        sleep 0.5
+    fi
+}
+
+# Discordの文字数制限は2000文字じゃが、安全のため1950文字をしきい値とするのじゃ
+LIMIT=1950
+
+if [ "${#MESSAGE}" -le "$LIMIT" ]; then
+    send_chunk "$MESSAGE"
 else
-    # curlコマンドでDiscordに送信じゃ
-    curl \
-        -X POST \
-        -H "Content-Type: application/json" \
-        -d "{\"content\": \"$MESSAGE\", \"username\": \"$HOST_NAME\"}" \
-        "$DISCORD_WEBHOOK_URL"
+    current_chunk=""
+    # 行ごとに分割して読み込み、チャンクを組み立てるのじゃ
+    while IFS= read -r line || [ -n "$line" ]; do
+        line_len=${#line}
+
+        # 1行自体が制限を超える場合は、文字単位で分割するのじゃ
+        if [ "$line_len" -gt "$LIMIT" ]; then
+            if [ -n "$current_chunk" ]; then
+                send_chunk "$current_chunk"
+                current_chunk=""
+            fi
+
+            remaining_line="$line"
+            while [ "${#remaining_line}" -gt "$LIMIT" ]; do
+                sub_chunk="${remaining_line:0:$LIMIT}"
+                send_chunk "$sub_chunk"
+                remaining_line="${remaining_line:$LIMIT}"
+            done
+            current_chunk="$remaining_line"
+        else
+            # 現在のチャンクにこの行を追加した場合の長さを計算するのじゃ
+            if [ -z "$current_chunk" ]; then
+                new_chunk="$line"
+            else
+                new_chunk="$current_chunk"$'\n'"$line"
+            fi
+
+            if [ "${#new_chunk}" -gt "$LIMIT" ]; then
+                send_chunk "$current_chunk"
+                current_chunk="$line"
+            else
+                current_chunk="$new_chunk"
+            fi
+        fi
+    done <<< "$MESSAGE"
+
+    # 残りのチャンクがあれば送信するのじゃ
+    if [ -n "$current_chunk" ]; then
+        send_chunk "$current_chunk"
+    fi
 fi
