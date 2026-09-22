@@ -145,7 +145,7 @@ while :; do
          ([(if .Online and .Active and (.InNetworkMap | not) then "!MAP" else empty end),
            (if .Online and .Active and (.InMagicSock | not) then "!MAGIC" else empty end),
            (if .Online and .Active and (.InEngine | not) then "!ENGINE" else empty end),
-           (if .Expired then "EXPIRED" else empty end)] | join(" "))] | map(tostring | gsub("[\\t\\r\\n\\u001f]"; " ")) | join("\u001f")' <<<"$status")
+           (if .Expired then "EXPIRED" else empty end)] | join(" "))] | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f")' <<<"$status")
     lines+=("$(printf '%*s' 120 '' | tr ' ' '-')" "Local Netcheck | $g6")
     previous_rx=(); previous_tx=(); previous_rate=(); previous_direction=()
     for key in "${!current_rx[@]}"; do
