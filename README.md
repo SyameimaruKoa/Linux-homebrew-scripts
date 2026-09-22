@@ -28,6 +28,7 @@
 - ZFS データセット変換（zfs）
 - Demucs 前後処理（音源分割・分離後の連結・マルチトラック WebM 生成）
 - 動画メタデータ更新（mkvpropedit）
+- Tailscale 接続状態の監視
 
 ## 動作環境と実行前の準備
 
@@ -51,6 +52,7 @@ chmod +x *.sh
 - rustup, cargo, meson, ninja, cmake, make, gcc 等（HandBrake ビルド）
 - gsettings, apt, systemctl（GNOME / Ubuntu 関連）
 - zfs（ZFS 関連）
+- tailscale, jq（Tailscale 監視）
 - xdg-user-dir, xdg-open（環境依存・あると便利）
 
 ## スクリプト一覧（内容・依存・使い方）
@@ -260,6 +262,13 @@ chmod +x *.sh
     gh config set secure_auth false
     gh auth login
     ```
+
+### [Tailscale_Status-Loop.sh](Tailscale_Status-Loop.sh)
+
+- 内容: `tailscale status --json` を定期取得し、Peer の接続状態・経路・IP・通信量・通信速度・診断フラグと、`tailscale netcheck --format=json` によるローカル IPv6 状態を表示。
+- 使い方: `./Tailscale_Status-Loop.sh`。`-i 5` / `--interval 5` で更新間隔を秒単位で指定（1〜3600秒、既定値1秒）、`-o` / `--online-only` でオフラインの Peer を非表示、`-d` / `--detail` で最終通信時刻を表示。`-h` / `--help` でヘルプ、Ctrl+C で終了。
+- 依存: bash, tailscale, jq。Tailscale が起動し、状態を取得できる環境が必要。
+- 備考: 端末の行数・列数に収まる範囲だけを描画します。Peer が多い場合は、端末を広げるか `--online-only` を利用してください。
 
 ### [update_mkv-webm_stats.sh](update_mkv-webm_stats.sh)
 
