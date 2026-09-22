@@ -55,9 +55,22 @@ cell() {
     printf '%-*s ' "$width" "$value"
 }
 draw() {
-    local line
-    if [[ -t 1 ]]; then printf '\033[H\033[J'; fi
-    for line in "${lines[@]}"; do printf '%s\n' "$line"; done
+    local line rows cols limit index
+    if [[ ! -t 1 ]]; then
+        printf '%s\n' "${lines[@]}"
+        return
+    fi
+
+    rows=$(tput lines 2>/dev/null) || rows=24
+    cols=$(tput cols 2>/dev/null) || cols=80
+    [[ $rows =~ ^[0-9]+$ ]] && ((rows > 1)) || rows=24
+    [[ $cols =~ ^[0-9]+$ ]] && ((cols > 1)) || cols=80
+    limit=$((rows - 1))
+    printf '\033[H\033[J'
+    for ((index=0; index<${#lines[@]} && index<limit; index++)); do
+        line=${lines[index]}
+        printf '%s\n' "${line:0:cols-1}"
+    done
 }
 
 while :; do
