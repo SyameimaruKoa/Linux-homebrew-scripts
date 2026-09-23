@@ -29,6 +29,8 @@
 - Demucs 前後処理（音源分割・分離後の連結・マルチトラック WebM 生成）
 - 動画メタデータ更新（mkvpropedit）
 - Tailscale 接続状態の監視
+- CPU コア／スレッドのパーキング管理
+- 空ディレクトリ削除、フォルダ階層のフラット化
 
 ## 動作環境と実行前の準備
 
@@ -56,6 +58,26 @@ chmod +x *.sh
 - xdg-user-dir, xdg-open（環境依存・あると便利）
 
 ## スクリプト一覧（内容・依存・使い方）
+
+### [cpu-core-parking.sh](cpu-core-parking.sh)
+
+- 内容: Linux の sysfs から CPU、物理コア、スレッド、ハイブリッド構成を検出し、指定した複数の論理 CPU を停止・再開。
+- 使い方: 状態確認は `./cpu-core-parking.sh status`、停止は `sudo ./cpu-core-parking.sh park --cpus 4-7`、再開は `sudo ./cpu-core-parking.sh unpark --cpus 4-7`。`-h`/`--help` で詳細を表示。
+- 依存: Linux sysfs、bash。状態変更には root 権限が必要です。
+- 注意: CPU 0 や、カーネルがホットプラグを許可していない CPU は停止できません。
+
+### [remove-empty-directories.sh](remove-empty-directories.sh)
+
+- 内容: 指定ディレクトリ以下の空ディレクトリを深い階層から削除。
+- 使い方: `./remove-empty-directories.sh /path/to/tree` で候補を確認し、`--execute` を付けて削除。対象ルート自身も削除する場合は `--include-root` を指定。
+- 依存: find、rmdir。
+
+### [flatten-directories.sh](flatten-directories.sh)
+
+- 内容: ワイルドカードに一致するカレント直下のフォルダから全ファイルを取り出し、階層を破棄してカレントへ移動後、空ディレクトリを削除。
+- 使い方: `./flatten-directories.sh 'album-*'` で候補を確認し、`--execute` を付けて実行。
+- 依存: find、mv、bash。
+- 注意: 同名ファイルが存在する場合は、処理前に検出して何も変更せず終了します。
 
 ### Demucs ワークフロー（推奨手順）
 
