@@ -12,7 +12,7 @@ Description:
 
 Options:
     -h, --help      このヘルプメッセージを表示して終了します。
-    -l, --lossless  PNGおよびBMPファイルのみを対象とし、ロスレス圧縮（可逆圧縮）モードで変換します。（JPG/JPEGはスキップされます）
+    -l, --lossless  PNGおよびBMPファイルのみを検索し、ロスレス圧縮（可逆圧縮）モードで変換します。
 EOF
 }
 
@@ -41,8 +41,8 @@ require_commands() {
     fi
 }
 
-# 必須コマンドに xargs と nproc を追加
-require_commands convert cwebp find tr xargs nproc
+# 必須コマンド
+require_commands convert cwebp find xargs nproc
 
 current_dir=$(pwd)
 
@@ -70,13 +70,6 @@ process_image() {
     local quality="$3"
     local output_extension="$4"
 
-    if [ "${fname}" = . ]; then
-        echo 処理を始めます
-        return
-    fi
-
-    echo "$fname" | grep -q "^/" && fname="."$fname
-    
     # 拡張子を除いたベース名を取得
     local base="${fname%.*}"
     local outputfile="${base}.$output_extension"
@@ -88,41 +81,37 @@ process_image() {
         outputfile="${base}_${fileNum}.$output_extension"
     done
     
-    # 拡張子を取得して小文字化
-    local ext="${fname##*.}"
-    local ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
-    
-    # ロスレスモード時、非可逆圧縮フォーマットはスキップ
-    if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "jpg" ] || [ "$ext_lower" = "jpeg" ]; }; then
-        echo "$fname は非可逆圧縮フォーマットのためスキップします"
-        return
-    fi
-    
     echo "───────────────ファイル情報───────────────"
     echo "インプットファイル名：$fname"
     echo "アウトプットファイル名：$outputfile"
     echo "────────────────────────────────────────"
     
     #magick & cwebp
-    if [ "$lossless_opt" -eq 1 ] && { [ "$ext_lower" = "png" ] || [ "$ext_lower" = "bmp" ]; }; then
+    if [ "$lossless_opt" -eq 1 ]; then
         # 並列時にログが混ざらないよう -quiet を付与
-        cwebp -quiet -lossless -q $quality -mt -metadata all "$fname" -o "$outputfile" &&
+        cwebp -quiet -lossless -q "$quality" -metadata all "$fname" -o "$outputfile" &&
             touch -cr "$fname" "$outputfile" &&
             rm "$fname"
     else
-        convert -define webp:thread-level=1 -quality $quality "$fname" "$outputfile" &&
+        convert -define webp:thread-level=1 -quality "$quality" "$fname" "$outputfile" &&
             touch -cr "$fname" "$outputfile" &&
             rm "$fname"
     fi
 }
-# サブプロセス（xargs）から呼び出せるように関数をエクスポート
+# 1回の走査で対象を拾い、NUL区切りで特殊文字を含むファイル名も安全に渡す。
+# ロスレス時は検索段階で JPG/JPEG を除外する。
+export lossless_opt quality output_extension
 export -f process_image
-
-# maxdepthを取り払い、グループ化して再帰処理に対応
-find . -type f \( -iname "$filePattern1" \
-    -or -iname "$filePattern2" \
-    -or -iname "$filePattern3" \
-    -or -iname "$filePattern4" \) |
-    xargs -d '\n' -P $(nproc) -I {} bash -c 'process_image "$@"' _ {} "$lossless_opt" "$quality" "$output_extension"
+if [ "$lossless_opt" -eq 1 ]; then
+    patterns=( -iname "$filePattern3" -o -iname "$filePattern4" )
+else
+    patterns=( -iname "$filePattern1" -o -iname "$filePattern2" -o -iname "$filePattern3" -o -iname "$filePattern4" )
+fi
+find . -type f \( "${patterns[@]}" \) -print0 |
+    xargs -0 -r -P "$(nproc)" -n 16 bash -c '
+        for fname do
+            process_image "$fname" "$lossless_opt" "$quality" "$output_extension"
+        done
+    ' _
 
 Koa_Discord_Message.sh "$(hostname)で画像変換の実行が終わりました。 実行場所：$current_dir"
