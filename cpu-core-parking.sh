@@ -3,7 +3,7 @@
 
 show_help() {
     cat <<EOF
-使い方: $(basename "$0") <status|park|unpark> [オプション]
+使い方: $(basename "$0") <status|park|unpark|cstate|uncstate> [オプション]
 
 Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認、停止、再開を行います。
 
@@ -11,18 +11,24 @@ Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認
     status              CPU 構成、ハイブリッド構成、オンライン状態を表示します。
     park                指定した論理 CPU をオフラインにします（root 権限が必要）。
     unpark              指定した論理 CPU をオンラインにします（root 権限が必要）。
+    cstate              指定した C-state より深い idle state を無効にします（root 権限が必要）。
+    uncstate            指定した C-state より深い idle state を有効にします（root 権限が必要）。
 
 オプション:
     -c, --cpus LIST     対象 CPU。例: 1,3-5,8（park/unpark では必須）。
+    -s, --state NAME    C-state 名（例: C3, C6）。cstate/uncstate で必須。
     -h, --help          このヘルプを表示します。
 
 例:
     $(basename "$0") status
     sudo $(basename "$0") park --cpus 4-7
     sudo $(basename "$0") unpark --cpus 4,6
+    sudo $(basename "$0") cstate --state C3
+    sudo $(basename "$0") uncstate --state C3
 
 注意:
     CPU 0、および online ファイルを持たない CPU は停止できません。
+    cstate C3 は C3 より深い state を無効化します（C3 自体は利用可能です）。
     ハイブリッド判定は sysfs の core_type を優先し、無い環境では最大周波数差を参考表示します。
 EOF
 }
@@ -135,6 +141,87 @@ show_status() {
     else
         echo "ハイブリッド構成: 未検出"
     fi
+    show_cstate_status
+}
+
+show_cstate_status() {
+    local cpu_dir state_dir name desc disabled
+    local found=0
+    echo
+    echo "C-state（CPU 0）:"
+    for state_dir in /sys/devices/system/cpu/cpu0/cpuidle/state[0-9]*; do
+        [ -d "$state_dir" ] || continue
+        found=1
+        name="$(<"$state_dir/name")"
+        desc="$(<"$state_dir/desc")"
+        disabled="$(<"$state_dir/disable")"
+        printf '  %-5s %-24s %s\n' "$name" "$desc" "$([ "$disabled" = 0 ] && echo 有効 || echo 無効)"
+    done
+    [ "$found" -eq 1 ] || echo "  cpuidle 情報を取得できません"
+}
+
+set_cstate() {
+    local action="$1"
+    local target="$2"
+    local cpu_dir state_dir name latency residency target_latency target_residency disable_file desired label
+    local cpus=()
+
+    [ -n "$target" ] || die "$action には --state NAME が必要です。"
+    [ "$(id -u)" -eq 0 ] || die "$action には root 権限が必要です。sudo で実行してください。"
+    target="${target^^}"
+    [[ "$target" =~ ^(POLL|C[0-9]+[S]?)$ ]] || die "不正な C-state 名です: $target"
+    [ -d /sys/devices/system/cpu/cpu0/cpuidle ] || die "cpuidle state が見つかりません."
+    target_latency=""
+    target_residency=""
+    for state_dir in /sys/devices/system/cpu/cpu0/cpuidle/state[0-9]*; do
+        [ -d "$state_dir" ] || continue
+        name="$(<"$state_dir/name")"
+        if [ "${name^^}" = "$target" ]; then
+            target_latency="$(<"$state_dir/latency")"
+            target_residency="$(<"$state_dir/residency")"
+            break
+        fi
+    done
+    [ -n "$target_latency" ] || die "この環境に C-state '$target' はありません。"
+
+    if [ "$action" = "cstate" ]; then
+        desired=1
+        label="無効化"
+    else
+        desired=0
+        label="有効化"
+    fi
+
+    for cpu_dir in /sys/devices/system/cpu/cpu[0-9]*; do
+        [ -d "$cpu_dir" ] || continue
+        [ -r "$cpu_dir/online" ] && [ "$(<"$cpu_dir/online")" != 1 ] && continue
+        [ -d "$cpu_dir/cpuidle" ] || continue
+        cpus+=("$cpu_dir")
+    done
+    [ "${#cpus[@]}" -gt 0 ] || die "オンライン CPU の cpuidle state が見つかりません。"
+
+    for cpu_dir in "${cpus[@]}"; do
+        for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
+            [ -d "$state_dir" ] || continue
+            name="$(<"$state_dir/name")"
+            latency="$(<"$state_dir/latency")"
+            residency="$(<"$state_dir/residency")"
+            [ "$latency" -gt "$target_latency" ] || [ "$residency" -gt "$target_residency" ] || continue
+            disable_file="$state_dir/disable"
+            [ -w "$disable_file" ] || die "${cpu_dir##*/} $name を変更できません: $disable_file"
+        done
+    done
+    for cpu_dir in "${cpus[@]}"; do
+        for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
+            [ -d "$state_dir" ] || continue
+            name="$(<"$state_dir/name")"
+            latency="$(<"$state_dir/latency")"
+            residency="$(<"$state_dir/residency")"
+            [ "$latency" -gt "$target_latency" ] || [ "$residency" -gt "$target_residency" ] || continue
+            printf '%s' "$desired" > "$state_dir/disable" || die "${cpu_dir##*/} $name の変更に失敗しました。"
+            echo "${cpu_dir##*/} $name を${label}しました。"
+        done
+    done
 }
 
 set_cpu_state() {
@@ -173,7 +260,7 @@ case "$action" in
         show_help
         exit 0
         ;;
-    status|park|unpark)
+    status|park|unpark|cstate|uncstate)
         shift
         ;;
     *)
@@ -184,11 +271,17 @@ case "$action" in
 esac
 
 cpu_list=""
+state_name=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -c|--cpus)
             [ "$#" -ge 2 ] || die "$1 には値が必要です。"
             cpu_list="$2"
+            shift 2
+            ;;
+        -s|--state)
+            [ "$#" -ge 2 ] || die "$1 には値が必要です。"
+            state_name="$2"
             shift 2
             ;;
         -h|--help)
@@ -202,9 +295,13 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "$action" = "status" ]; then
-    [ -z "$cpu_list" ] || die "status では --cpus を指定できません。"
+    [ -z "$cpu_list" ] && [ -z "$state_name" ] || die "status ではオプションを指定できません。"
     show_status
+elif [ "$action" = "cstate" ] || [ "$action" = "uncstate" ]; then
+    [ -z "$cpu_list" ] || die "$action では --cpus を指定できません（全オンライン CPU が対象です）。"
+    set_cstate "$action" "$state_name"
 else
+    [ -z "$state_name" ] || die "$action では --state を指定できません。"
     [ -n "$cpu_list" ] || die "$action には --cpus LIST が必要です。"
     set_cpu_state "$action" "$cpu_list"
 fi
