@@ -11,8 +11,8 @@ Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認
     status              CPU 構成、ハイブリッド構成、オンライン状態を表示します。
     park                指定した論理 CPU をオフラインにします（root 権限が必要）。
     unpark              指定した論理 CPU をオンラインにします（root 権限が必要）。
-    cstate              指定 CPU で、指定した C-state より深い idle state を無効にします。
-    uncstate            指定 CPU で、指定した C-state より深い idle state を有効にします。
+    cstate              指定したオンライン CPU で浅い idle state を無効にし、深い state を選びやすくします。
+    uncstate            指定したオンライン CPU で、対象 state より浅い state を再有効化します。
 
 オプション:
     -c, --cpus LIST     対象 CPU。例: 1,3-5,8（park/unpark/cstate/uncstate で必須）。
@@ -28,8 +28,8 @@ Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認
 
 注意:
     CPU 0、および online ファイルを持たない CPU は停止できません。
-    offline 前に cstate を設定すると、unpark 後にその CPU へ設定を適用します。
-    cstate C3 は C3 より深い state を無効化します（C3 自体は利用可能です）。
+    C-state はオンライン CPU の idle 時にのみ選択されます。offline CPU には設定できません。
+    C-state は idle 時の選択候補を制限します。実行中の CPU を特定 state に強制滞在させる機能ではありません。
     ハイブリッド判定は sysfs の core_type を優先し、無い環境では最大周波数差を参考表示します。
 EOF
 }
@@ -166,10 +166,6 @@ show_cstate_status() {
             [ "$disabled" = 1 ] && disabled_states+="${disabled_states:+,}$name"
         done
         pending=""
-        if [ -r "/run/cpu-core-parking/cpu${cpu}.state" ]; then
-            read -r name disabled < "/run/cpu-core-parking/cpu${cpu}.state"
-            pending="保留:$nameより深いstateを$([ "$disabled" = 1 ] && echo 無効化 || echo 有効化)"
-        fi
         printf '  CPU %-4s 無効: %s%s\n' "$cpu" "${disabled_states:-なし}" "${pending:+ / $pending}"
     done
     [ "$found" -eq 1 ] || echo "  cpuidle 情報を取得できません"
@@ -179,7 +175,7 @@ set_cstate() {
     local action="$1"
     local list="$2"
     local target="$3"
-    local cpu cpu_dir state_dir name latency residency target_latency target_residency disable_file desired label changed=0 verify
+    local cpu cpu_dir state_dir name latency residency target_latency target_residency disable_file desired label changed=0 verify online_file
     local cpus=()
     local -A selected=()
 
@@ -193,6 +189,11 @@ set_cstate() {
     for cpu in "${cpus[@]}"; do
         [ -d "/sys/devices/system/cpu/cpu${cpu}" ] || die "CPU $cpu は存在しません。"
         cpu_dir="/sys/devices/system/cpu/cpu${cpu}"
+        online_file="$cpu_dir/online"
+        if [ -r "$online_file" ] && [ "$(<"$online_file")" != 1 ]; then
+            rm -f "/run/cpu-core-parking/cpu${cpu}.state"
+            die "CPU $cpu は offline です。省電力目的の C-state 設定は online CPU にだけ適用できます。"
+        fi
         if [ -d "$cpu_dir/cpuidle" ]; then
             for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
                 [ -d "$state_dir" ] || continue
@@ -204,29 +205,21 @@ set_cstate() {
                 fi
             done
             [ -n "${selected[$cpu:latency]:-}" ] || die "CPU $cpu に C-state '$target' はありません。"
-        elif [ -f "/run/cpu-core-parking/cpu${cpu}.state" ]; then
-            selected["$cpu:offline"]=1
         else
-            die "CPU $cpu は offline で cpuidle 情報がありません。先に cstate --cpus $cpu --state $target を実行してください。"
+            die "CPU $cpu の cpuidle 情報がありません。"
         fi
     done
 
     if [ "$action" = "cstate" ]; then
         desired=1
-        label="無効化"
+        label="浅いstateを無効化"
     else
         desired=0
-        label="有効化"
+        label="浅いstateを再有効化"
     fi
 
     for cpu in "${cpus[@]}"; do
         cpu_dir="/sys/devices/system/cpu/cpu${cpu}"
-        if [ -n "${selected[$cpu:offline]:-}" ]; then
-            mkdir -p /run/cpu-core-parking || die "C-state 設定の保存先を作成できません。"
-            printf '%s %s\n' "$target" "$desired" > "/run/cpu-core-parking/cpu${cpu}.state"
-            echo "CPU $cpu は offline のため、unpark 後に適用する設定を保存しました。"
-            continue
-        fi
         target_latency="${selected[$cpu:latency]}"
         target_residency="${selected[$cpu:residency]}"
         changed=0
@@ -235,7 +228,11 @@ set_cstate() {
             name="$(<"$state_dir/name")"
             latency="$(<"$state_dir/latency")"
             residency="$(<"$state_dir/residency")"
-            [ "$latency" -gt "$target_latency" ] || [ "$residency" -gt "$target_residency" ] || continue
+            if [ "$latency" -lt "$target_latency" ] || [ "$residency" -lt "$target_residency" ]; then
+                [ "$(<"$state_dir/disable")" = "$desired" ] || continue
+            else
+                continue
+            fi
             disable_file="$state_dir/disable"
             [ -w "$disable_file" ] || die "${cpu_dir##*/} $name を変更できません: $disable_file"
         done
@@ -244,13 +241,17 @@ set_cstate() {
             name="$(<"$state_dir/name")"
             latency="$(<"$state_dir/latency")"
             residency="$(<"$state_dir/residency")"
-            [ "$latency" -gt "$target_latency" ] || [ "$residency" -gt "$target_residency" ] || continue
+            if [ "$latency" -lt "$target_latency" ] || [ "$residency" -lt "$target_residency" ]; then
+                [ "$(<"$state_dir/disable")" = "$desired" ] || continue
+            else
+                continue
+            fi
             printf '%s' "$desired" > "$state_dir/disable" || die "${cpu_dir##*/} $name の変更に失敗しました。"
             verify="$(<"$state_dir/disable")"
             [ "$verify" = "$desired" ] || die "${cpu_dir##*/} $name の設定を確認できません（disable=$verify）。"
             changed=$((changed + 1))
         done
-        printf 'CPU %s: %sより深いstateを%d個%s、sysfsで確認%s。\n' "$cpu" "$target" "$changed" "$label" "$([ "$changed" -gt 0 ] && echo 'しました' || echo '対象なし')"
+        printf 'CPU %s: %sより浅いstateを%d個%s（sysfs確認済み）。\n' "$cpu" "$target" "$changed" "$label"
     done
 }
 
@@ -322,9 +323,10 @@ apply_cstate_to_cpu() {
         name="$(<"$state_dir/name")"
         latency="$(<"$state_dir/latency")"
         residency="$(<"$state_dir/residency")"
-        [ "$latency" -gt "$target_latency" ] || [ "$residency" -gt "$target_residency" ] || continue
+        [ "$latency" -lt "$target_latency" ] || [ "$residency" -lt "$target_residency" ] || continue
         printf '%s' "$desired" > "$state_dir/disable" || die "CPU $cpu $name の設定に失敗しました。"
-        echo "CPU $cpu $name を$([ "$desired" = 1 ] && echo 無効化 || echo 有効化)しました。"
+        verify="$(<"$state_dir/disable")"
+        [ "$verify" = "$desired" ] || die "CPU $cpu $name の設定を確認できません（disable=$verify）。"
     done
 }
 
