@@ -146,7 +146,7 @@ show_status() {
 }
 
 show_cstate_status() {
-    local cpu_dir state_dir name desc disabled cpu
+    local cpu_dir state_dir name disabled cpu disabled_states pending
     local found=0
     echo
     echo "C-state:"
@@ -157,14 +157,20 @@ show_cstate_status() {
             printf '  CPU %-4s offline / cpuidle 情報なし\n' "$cpu"
             continue
         fi
+        disabled_states=""
         for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
             [ -d "$state_dir" ] || continue
             found=1
             name="$(<"$state_dir/name")"
-            desc="$(<"$state_dir/desc")"
             disabled="$(<"$state_dir/disable")"
-            printf '  CPU %-4s %-5s %-24s %s\n' "$cpu" "$name" "$desc" "$([ "$disabled" = 0 ] && echo 有効 || echo 無効)"
+            [ "$disabled" = 1 ] && disabled_states+="${disabled_states:+,}$name"
         done
+        pending=""
+        if [ -r "/run/cpu-core-parking/cpu${cpu}.state" ]; then
+            read -r name disabled < "/run/cpu-core-parking/cpu${cpu}.state"
+            pending="保留:$nameより深いstateを$([ "$disabled" = 1 ] && echo 無効化 || echo 有効化)"
+        fi
+        printf '  CPU %-4s 無効: %s%s\n' "$cpu" "${disabled_states:-なし}" "${pending:+ / $pending}"
     done
     [ "$found" -eq 1 ] || echo "  cpuidle 情報を取得できません"
 }
@@ -173,7 +179,7 @@ set_cstate() {
     local action="$1"
     local list="$2"
     local target="$3"
-    local cpu cpu_dir state_dir name latency residency target_latency target_residency disable_file desired label
+    local cpu cpu_dir state_dir name latency residency target_latency target_residency disable_file desired label changed=0 verify
     local cpus=()
     local -A selected=()
 
@@ -216,7 +222,6 @@ set_cstate() {
     for cpu in "${cpus[@]}"; do
         cpu_dir="/sys/devices/system/cpu/cpu${cpu}"
         if [ -n "${selected[$cpu:offline]:-}" ]; then
-            printf '%s %s\n' "$target" "$desired" > "/run/cpu-core-parking/cpu${cpu}.state"
             mkdir -p /run/cpu-core-parking || die "C-state 設定の保存先を作成できません。"
             printf '%s %s\n' "$target" "$desired" > "/run/cpu-core-parking/cpu${cpu}.state"
             echo "CPU $cpu は offline のため、unpark 後に適用する設定を保存しました。"
@@ -224,6 +229,7 @@ set_cstate() {
         fi
         target_latency="${selected[$cpu:latency]}"
         target_residency="${selected[$cpu:residency]}"
+        changed=0
         for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
             [ -d "$state_dir" ] || continue
             name="$(<"$state_dir/name")"
@@ -240,8 +246,11 @@ set_cstate() {
             residency="$(<"$state_dir/residency")"
             [ "$latency" -gt "$target_latency" ] || [ "$residency" -gt "$target_residency" ] || continue
             printf '%s' "$desired" > "$state_dir/disable" || die "${cpu_dir##*/} $name の変更に失敗しました。"
-            echo "${cpu_dir##*/} $name を${label}しました。"
+            verify="$(<"$state_dir/disable")"
+            [ "$verify" = "$desired" ] || die "${cpu_dir##*/} $name の設定を確認できません（disable=$verify）。"
+            changed=$((changed + 1))
         done
+        printf 'CPU %s: %sより深いstateを%d個%s、sysfsで確認%s。\n' "$cpu" "$target" "$changed" "$label" "$([ "$changed" -gt 0 ] && echo 'しました' || echo '対象なし')"
     done
 }
 
