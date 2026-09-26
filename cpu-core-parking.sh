@@ -96,7 +96,9 @@ cpu_kind() {
             *) echo "type=$(<"$type_file")" ;;
         esac
     elif [ -r "$freq_file" ]; then
-        echo "max=$(<"$freq_file")kHz"
+        local max_freq
+        max_freq="$(<"$freq_file")"
+        printf 'max=%sMHz\n' "$(( (max_freq + 500) / 1000 ))"
     else
         echo "unknown"
     fi
@@ -105,13 +107,18 @@ cpu_kind() {
 show_status() {
     local cpu_dir cpu package core sibling kind state
     local kinds=""
+    local cpu_dirs=()
+    mapfile -t cpu_dirs < <(printf '%s\n' /sys/devices/system/cpu/cpu[0-9]* | sort -V)
     printf '%-6s %-8s %-8s %-16s %-16s %s\n' "CPU" "PACKAGE" "CORE" "SIBLINGS" "TYPE/FREQ" "STATE"
-    for cpu_dir in /sys/devices/system/cpu/cpu[0-9]*; do
+    for cpu_dir in "${cpu_dirs[@]}"; do
         [ -d "$cpu_dir" ] || continue
         cpu="${cpu_dir##*cpu}"
-        package="$(<"$cpu_dir/topology/physical_package_id")"
-        core="$(<"$cpu_dir/topology/core_id")"
-        sibling="$(<"$cpu_dir/topology/thread_siblings_list")"
+        package="-"
+        core="-"
+        sibling="-"
+        [ -r "$cpu_dir/topology/physical_package_id" ] && package="$(<"$cpu_dir/topology/physical_package_id")"
+        [ -r "$cpu_dir/topology/core_id" ] && core="$(<"$cpu_dir/topology/core_id")"
+        [ -r "$cpu_dir/topology/thread_siblings_list" ] && sibling="$(<"$cpu_dir/topology/thread_siblings_list")"
         kind="$(cpu_kind "$cpu")"
         state="$(cpu_state "$cpu")"
         kinds+="$kind"$'\n'
@@ -119,7 +126,10 @@ show_status() {
     done
     echo
     echo "論理 CPU 数: $(find /sys/devices/system/cpu -maxdepth 1 -type d -name 'cpu[0-9]*' | wc -l)"
-    echo "物理コア数: $(for cpu_dir in /sys/devices/system/cpu/cpu[0-9]*; do printf '%s:%s\n' "$(<"$cpu_dir/topology/physical_package_id")" "$(<"$cpu_dir/topology/core_id")"; done | sort -u | wc -l)"
+    echo "物理コア数: $(for cpu_dir in "${cpu_dirs[@]}"; do
+        [ -r "$cpu_dir/topology/physical_package_id" ] && [ -r "$cpu_dir/topology/core_id" ] || continue
+        printf '%s:%s\n' "$(<"$cpu_dir/topology/physical_package_id")" "$(<"$cpu_dir/topology/core_id")"
+    done | sort -u | wc -l)"
     if [ "$(printf '%s' "$kinds" | sed '/^$/d' | sort -u | wc -l)" -gt 1 ]; then
         echo "ハイブリッド構成: 検出（TYPE/FREQ が複数種類）"
     else
