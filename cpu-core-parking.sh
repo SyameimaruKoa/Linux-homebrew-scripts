@@ -234,15 +234,26 @@ set_frequency() {
         min_khz="$old_min"; max_khz="$old_max"
         [ -z "$min_mhz" ] || min_khz="$((min_mhz * 1000))"
         [ -z "$max_mhz" ] || max_khz="$((max_mhz * 1000))"
-        if [ "$max_khz" -lt "$old_min" ]; then printf '%s' "$min_khz" > "$policy/scaling_min_freq" || die "${policy##*/} 最小値を一時設定できません。"; fi
-        if [ "$min_khz" -gt "$old_max" ]; then printf '%s' "$max_khz" > "$policy/scaling_max_freq" || die "${policy##*/} 最大値を一時設定できません。"; fi
-        printf '%s' "$min_khz" > "$policy/scaling_min_freq" || die "${policy##*/} 最小クロックを設定できません。"
-        printf '%s' "$max_khz" > "$policy/scaling_max_freq" || die "${policy##*/} 最大クロックを設定できません。"
+        # 制限範囲が交差する場合は、先に反対側の値を動かして矛盾を避ける。
+        if [ "$max_khz" -lt "$old_min" ]; then
+            printf '%s' "$min_khz" > "$policy/scaling_min_freq" || die "${policy##*/}: 最小値を先に調整できません。"
+        elif [ "$min_khz" -gt "$old_max" ]; then
+            printf '%s' "$max_khz" > "$policy/scaling_max_freq" || die "${policy##*/}: 最大値を先に調整できません。"
+        fi
+        if [ -n "$min_mhz" ]; then
+            printf '%s' "$min_khz" > "$policy/scaling_min_freq" 2>/dev/null || die "${policy##*/}: 最小値を書き込めませんでした。"
+        fi
+        if [ -n "$max_mhz" ]; then
+            printf '%s' "$max_khz" > "$policy/scaling_max_freq" 2>/dev/null || die "${policy##*/}: 最大値を書き込めませんでした。"
+        fi
         actual="$(<"$policy/scaling_min_freq")"
-        [ "$actual" = "$min_khz" ] || die "${policy##*/} 最小値が一致しません（要求 $((min_khz / 1000)) MHz、実際 $((actual / 1000)) MHz）。"
+        old_min="$actual"
         actual="$(<"$policy/scaling_max_freq")"
-        [ "$actual" = "$max_khz" ] || die "${policy##*/} 最大値が一致しません（要求 $((max_khz / 1000)) MHz、実際 $((actual / 1000)) MHz）。"
-        printf '%s: min=%d MHz max=%d MHz（sysfs確認済み）\n' "${policy##*/}" "$((min_khz / 1000))" "$((max_khz / 1000))"
+        if { [ -z "$min_mhz" ] || [ "$old_min" = "$min_khz" ]; } && { [ -z "$max_mhz" ] || [ "$actual" = "$max_khz" ]; }; then
+            printf '%s: min=%d MHz max=%d MHz 適用確認済み\n' "${policy##*/}" "$((old_min / 1000))" "$((actual / 1000))"
+        else
+            printf '%s: 要求 min=%s max=%s MHz / 実際 min=%d max=%d MHz（未適用またはカーネル補正）\n' "${policy##*/}" "${min_mhz:--}" "${max_mhz:--}" "$((old_min / 1000))" "$((actual / 1000))" >&2
+        fi
     done
 }
 
@@ -250,7 +261,7 @@ set_cstate() {
     local action="$1"
     local list="$2"
     local target="$3"
-    local cpu cpu_dir state_dir name state_index target_index disable_file desired label changed=0 verify online_file disabled_list=""
+    local cpu cpu_dir state_dir name state_index target_index disable_file desired label changed=0 verify online_file disabled_list="" deeper_available
     local cpus=()
     local -A selected=()
 
@@ -324,14 +335,19 @@ set_cstate() {
             disabled_list+="${disabled_list:+,}$name"
         done
         if [ "$action" = "cstate" ]; then
-            local deep_enabled=0
+            deeper_available=0
             for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
                 [ -d "$state_dir" ] || continue
                 state_index="${state_dir##*state}"
                 [ "$state_index" -gt "$target_index" ] || continue
-                [ "$(<"$state_dir/disable")" = 0 ] && deep_enabled=1
+                deeper_available=1
+                if [ "$(<"$state_dir/disable")" != 0 ]; then
+                    die "CPU $cpu: $target より深い state $(<"$state_dir/name") が無効です。浅い state を閉じても深い idle state を選べません。"
+                fi
             done
-            [ "$deep_enabled" -eq 1 ] || die "CPU $cpu: $target より深い idle state が有効ではありません。C-state を選べる状態にできませんでした。"
+            if [ "$deeper_available" -eq 0 ]; then
+                echo "注意: CPU $cpu の $target は最深 state のため、それより浅い state の無効化だけでは $target を選びやすくできません。" >&2
+            fi
         fi
         printf 'CPU %s: %sより浅いstate %d個を%s%s（sysfs確認済み）。\n' "$cpu" "$target" "$changed" "$label" "${disabled_list:+: $disabled_list}"
         disabled_list=""
