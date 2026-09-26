@@ -3,7 +3,7 @@
 
 show_help() {
     cat <<EOF
-使い方: $(basename "$0") <status|park|unpark|cstate|uncstate> [オプション]
+使い方: $(basename "$0") <status|park|unpark|cstate|uncstate|freq> [オプション]
 
 Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認、停止、再開を行います。
 
@@ -13,10 +13,13 @@ Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認
     unpark              指定した論理 CPU をオンラインにします（root 権限が必要）。
     cstate              指定したオンライン CPU で浅い idle state を無効にし、深い state を選びやすくします。
     uncstate            指定したオンライン CPU で、対象 state より浅い state を再有効化します。
+    freq                指定 CPU の最小・最大クロックを制限します（root 権限が必要）。
 
 オプション:
-    -c, --cpus LIST     対象 CPU。例: 1,3-5,8（park/unpark/cstate/uncstate で必須）。
+    -c, --cpus LIST     対象 CPU。例: 1,3-5,8（park/unpark/cstate/uncstate/freq で必須）。
     -s, --state NAME    C-state 名（例: C3, C6）。cstate/uncstate で必須。
+    --min-mhz VALUE     最低クロック（MHz）。freq で任意。
+    --max-mhz VALUE     最高クロック（MHz）。freq で任意。
     -h, --help          このヘルプを表示します。
 
 例:
@@ -25,11 +28,13 @@ Linux の sysfs を使い、論理 CPU（コア／スレッド）の状態確認
     sudo $(basename "$0") unpark --cpus 4,6
     sudo $(basename "$0") cstate --cpus 4-7 --state C3
     sudo $(basename "$0") uncstate --cpus 4-7 --state C3
+    sudo $(basename "$0") freq --cpus 4-7 --max-mhz 1800
 
 注意:
     CPU 0、および online ファイルを持たない CPU は停止できません。
     C-state はオンライン CPU の idle 時にのみ選択されます。offline CPU には設定できません。
     C-state は idle 時の選択候補を制限します。実行中の CPU を特定 state に強制滞在させる機能ではありません。
+    freq は CPUFreq policy を変更します。同じ policy を共有する CPU にも反映されます。
     ハイブリッド判定は sysfs の core_type を優先し、無い環境では最大周波数差を参考表示します。
 EOF
 }
@@ -143,6 +148,7 @@ show_status() {
         echo "ハイブリッド構成: 未検出"
     fi
     show_cstate_status
+    show_frequency_status
 }
 
 show_cstate_status() {
@@ -171,11 +177,80 @@ show_cstate_status() {
     [ "$found" -eq 1 ] || echo "  cpuidle 情報を取得できません"
 }
 
+show_frequency_status() {
+    local cpu_dir cpu policy min max current
+    echo
+    echo "クロック制限 (MHz):"
+    for cpu_dir in /sys/devices/system/cpu/cpu[0-9]*; do
+        [ -d "$cpu_dir" ] || continue
+        cpu="${cpu_dir##*cpu}"
+        policy="$(readlink -f "$cpu_dir/cpufreq" 2>/dev/null)"
+        [ -n "$policy" ] && [ -r "$policy/scaling_min_freq" ] && [ -r "$policy/scaling_max_freq" ] || {
+            printf '  CPU %-4s 未対応\n' "$cpu"
+            continue
+        }
+        min="$(<"$policy/scaling_min_freq")"
+        max="$(<"$policy/scaling_max_freq")"
+        current="-"
+        [ ! -r "$policy/scaling_cur_freq" ] || current="$(<"$policy/scaling_cur_freq")"
+        if [ "$current" = - ]; then current_mhz=-; else current_mhz="$((current / 1000))"; fi
+        printf '  CPU %-4s min=%s max=%s current=%s\n' "$cpu" "$((min / 1000))" "$((max / 1000))" "$current_mhz"
+    done
+}
+
+set_frequency() {
+    local list="$1" min_mhz="$2" max_mhz="$3"
+    local cpu cpu_dir policy min_khz max_khz old_min old_max actual current_mhz
+    local cpus=() policies=()
+    local -A seen=()
+    [ -n "$min_mhz" ] || [ -n "$max_mhz" ] || die "freq には --min-mhz または --max-mhz が必要です。"
+    [ "$(id -u)" -eq 0 ] || die "freq には root 権限が必要です。sudo で実行してください。"
+    validate_cpu_list "$list"
+    for value in "$min_mhz" "$max_mhz"; do
+        [ -z "$value" ] || [[ "$value" =~ ^[0-9]+$ ]] || die "クロック値は正の整数 MHz で指定してください: $value"
+        [ -z "$value" ] || [ "$value" -gt 0 ] || die "クロック値は 0 より大きくしてください。"
+    done
+    [ -z "$min_mhz" ] || [ -z "$max_mhz" ] || [ "$min_mhz" -le "$max_mhz" ] || die "最小クロックは最大クロック以下にしてください。"
+    mapfile -t cpus < <(expand_cpu_list "$list")
+    for cpu in "${cpus[@]}"; do
+        cpu_dir="/sys/devices/system/cpu/cpu${cpu}"
+        [ -d "$cpu_dir" ] || die "CPU $cpu は存在しません。"
+        [ ! -r "$cpu_dir/online" ] || [ "$(<"$cpu_dir/online")" = 1 ] || die "CPU $cpu は offline です。"
+        policy="$(readlink -f "$cpu_dir/cpufreq" 2>/dev/null)"
+        [ -n "$policy" ] && [ -r "$policy/scaling_min_freq" ] && [ -r "$policy/scaling_max_freq" ] || die "CPU $cpu に変更可能な cpufreq policy がありません。"
+        if [ -z "${seen[$policy]:-}" ]; then policies+=("$policy"); seen[$policy]=1; fi
+    done
+    for policy in "${policies[@]}"; do
+        old_min="$(<"$policy/scaling_min_freq")"
+        old_max="$(<"$policy/scaling_max_freq")"
+        min_khz="$old_min"; max_khz="$old_max"
+        [ -z "$min_mhz" ] || min_khz="$((min_mhz * 1000))"
+        [ -z "$max_mhz" ] || max_khz="$((max_mhz * 1000))"
+        [ "$min_khz" -le "$max_khz" ] || die "${policy##*/}: 最小クロックが最大クロックを超えています。"
+        [ -w "$policy/scaling_min_freq" ] && [ -w "$policy/scaling_max_freq" ] || die "${policy##*/} のクロック制限を変更できません。"
+    done
+    for policy in "${policies[@]}"; do
+        old_min="$(<"$policy/scaling_min_freq")"; old_max="$(<"$policy/scaling_max_freq")"
+        min_khz="$old_min"; max_khz="$old_max"
+        [ -z "$min_mhz" ] || min_khz="$((min_mhz * 1000))"
+        [ -z "$max_mhz" ] || max_khz="$((max_mhz * 1000))"
+        if [ "$max_khz" -lt "$old_min" ]; then printf '%s' "$min_khz" > "$policy/scaling_min_freq" || die "${policy##*/} 最小値を一時設定できません。"; fi
+        if [ "$min_khz" -gt "$old_max" ]; then printf '%s' "$max_khz" > "$policy/scaling_max_freq" || die "${policy##*/} 最大値を一時設定できません。"; fi
+        printf '%s' "$min_khz" > "$policy/scaling_min_freq" || die "${policy##*/} 最小クロックを設定できません。"
+        printf '%s' "$max_khz" > "$policy/scaling_max_freq" || die "${policy##*/} 最大クロックを設定できません。"
+        actual="$(<"$policy/scaling_min_freq")"
+        [ "$actual" = "$min_khz" ] || die "${policy##*/} 最小値が一致しません（要求 $((min_khz / 1000)) MHz、実際 $((actual / 1000)) MHz）。"
+        actual="$(<"$policy/scaling_max_freq")"
+        [ "$actual" = "$max_khz" ] || die "${policy##*/} 最大値が一致しません（要求 $((max_khz / 1000)) MHz、実際 $((actual / 1000)) MHz）。"
+        printf '%s: min=%d MHz max=%d MHz（sysfs確認済み）\n' "${policy##*/}" "$((min_khz / 1000))" "$((max_khz / 1000))"
+    done
+}
+
 set_cstate() {
     local action="$1"
     local list="$2"
     local target="$3"
-    local cpu cpu_dir state_dir name latency residency target_latency target_residency disable_file desired label changed=0 verify online_file
+    local cpu cpu_dir state_dir name state_index target_index disable_file desired label changed=0 verify online_file disabled_list=""
     local cpus=()
     local -A selected=()
 
@@ -199,12 +274,11 @@ set_cstate() {
                 [ -d "$state_dir" ] || continue
                 name="$(<"$state_dir/name")"
                 if [ "${name^^}" = "$target" ]; then
-                    selected["$cpu:latency"]="$(<"$state_dir/latency")"
-                    selected["$cpu:residency"]="$(<"$state_dir/residency")"
+                    selected["$cpu:target_index"]="${state_dir##*state}"
                     break
                 fi
             done
-            [ -n "${selected[$cpu:latency]:-}" ] || die "CPU $cpu に C-state '$target' はありません。"
+            [ -n "${selected[$cpu:target_index]:-}" ] || die "CPU $cpu に C-state '$target' はありません。"
         else
             die "CPU $cpu の cpuidle 情報がありません。"
         fi
@@ -220,15 +294,13 @@ set_cstate() {
 
     for cpu in "${cpus[@]}"; do
         cpu_dir="/sys/devices/system/cpu/cpu${cpu}"
-        target_latency="${selected[$cpu:latency]}"
-        target_residency="${selected[$cpu:residency]}"
+        target_index="${selected[$cpu:target_index]}"
         changed=0
         for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
             [ -d "$state_dir" ] || continue
             name="$(<"$state_dir/name")"
-            latency="$(<"$state_dir/latency")"
-            residency="$(<"$state_dir/residency")"
-            if [ "$latency" -lt "$target_latency" ] || [ "$residency" -lt "$target_residency" ]; then
+            state_index="${state_dir##*state}"
+            if [ "$state_index" -lt "$target_index" ]; then
                 [ "$(<"$state_dir/disable")" = "$desired" ] || continue
             else
                 continue
@@ -239,9 +311,8 @@ set_cstate() {
         for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
             [ -d "$state_dir" ] || continue
             name="$(<"$state_dir/name")"
-            latency="$(<"$state_dir/latency")"
-            residency="$(<"$state_dir/residency")"
-            if [ "$latency" -lt "$target_latency" ] || [ "$residency" -lt "$target_residency" ]; then
+            state_index="${state_dir##*state}"
+            if [ "$state_index" -lt "$target_index" ]; then
                 [ "$(<"$state_dir/disable")" = "$desired" ] || continue
             else
                 continue
@@ -250,8 +321,20 @@ set_cstate() {
             verify="$(<"$state_dir/disable")"
             [ "$verify" = "$desired" ] || die "${cpu_dir##*/} $name の設定を確認できません（disable=$verify）。"
             changed=$((changed + 1))
+            disabled_list+="${disabled_list:+,}$name"
         done
-        printf 'CPU %s: %sより浅いstateを%d個%s（sysfs確認済み）。\n' "$cpu" "$target" "$changed" "$label"
+        if [ "$action" = "cstate" ]; then
+            local deep_enabled=0
+            for state_dir in "$cpu_dir"/cpuidle/state[0-9]*; do
+                [ -d "$state_dir" ] || continue
+                state_index="${state_dir##*state}"
+                [ "$state_index" -gt "$target_index" ] || continue
+                [ "$(<"$state_dir/disable")" = 0 ] && deep_enabled=1
+            done
+            [ "$deep_enabled" -eq 1 ] || die "CPU $cpu: $target より深い idle state が有効ではありません。C-state を選べる状態にできませんでした。"
+        fi
+        printf 'CPU %s: %sより浅いstate %d個を%s%s（sysfs確認済み）。\n' "$cpu" "$target" "$changed" "$label" "${disabled_list:+: $disabled_list}"
+        disabled_list=""
     done
 }
 
@@ -338,7 +421,7 @@ case "$action" in
         show_help
         exit 0
         ;;
-    status|park|unpark|cstate|uncstate)
+    status|park|unpark|cstate|uncstate|freq)
         shift
         ;;
     *)
@@ -350,6 +433,8 @@ esac
 
 cpu_list=""
 state_name=""
+min_mhz=""
+max_mhz=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -c|--cpus)
@@ -360,6 +445,16 @@ while [ "$#" -gt 0 ]; do
         -s|--state)
             [ "$#" -ge 2 ] || die "$1 には値が必要です。"
             state_name="$2"
+            shift 2
+            ;;
+        --min-mhz)
+            [ "$#" -ge 2 ] || die "$1 には値が必要です。"
+            min_mhz="$2"
+            shift 2
+            ;;
+        --max-mhz)
+            [ "$#" -ge 2 ] || die "$1 には値が必要です。"
+            max_mhz="$2"
             shift 2
             ;;
         -h|--help)
@@ -375,11 +470,15 @@ done
 if [ "$action" = "status" ]; then
     [ -z "$cpu_list" ] && [ -z "$state_name" ] || die "status ではオプションを指定できません。"
     show_status
+elif [ "$action" = "freq" ]; then
+    [ -z "$state_name" ] || die "freq では --state を指定できません。"
+    [ -n "$cpu_list" ] || die "freq には --cpus LIST が必要です。"
+    set_frequency "$cpu_list" "$min_mhz" "$max_mhz"
 elif [ "$action" = "cstate" ] || [ "$action" = "uncstate" ]; then
     [ -n "$cpu_list" ] || die "$action には --cpus LIST が必要です。"
     set_cstate "$action" "$cpu_list" "$state_name"
 else
-    [ -z "$state_name" ] || die "$action では --state を指定できません。"
+    [ -z "$state_name" ] && [ -z "$min_mhz" ] && [ -z "$max_mhz" ] || die "$action では state/freq オプションを指定できません。"
     [ -n "$cpu_list" ] || die "$action には --cpus LIST が必要です。"
     set_cpu_state "$action" "$cpu_list"
 fi

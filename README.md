@@ -61,8 +61,8 @@ chmod +x *.sh
 
 ### [cpu-core-parking.sh](cpu-core-parking.sh)
 
-- 内容: Linux の sysfs から CPU、物理コア、スレッド、ハイブリッド構成を検出し、論理 CPU の停止・再開と CPU ごとの C-state 制御。
-- 使い方: 状態確認は `./cpu-core-parking.sh status`、停止・再開は `sudo ./cpu-core-parking.sh park --cpus 4-7` / `sudo ./cpu-core-parking.sh unpark --cpus 4-7`。C3 より深い state の無効化は `sudo ./cpu-core-parking.sh cstate --cpus 4-7 --state C3`、再有効化は `uncstate`。offline CPU への設定は unpark 後に適用。`-h`/`--help` で詳細を表示。
+- 内容: Linux の sysfs から CPU、物理コア、スレッド、ハイブリッド構成を検出し、論理 CPU の停止・再開、CPU ごとの C-state 選択制御、CPUFreq クロック制限。
+- 使い方: 状態確認は `./cpu-core-parking.sh status`、停止・再開は `sudo ./cpu-core-parking.sh park --cpus 4-7` / `sudo ./cpu-core-parking.sh unpark --cpus 4-7`。深い state を選びやすくするには `sudo ./cpu-core-parking.sh cstate --cpus 4-7 --state C6`、元に戻すには `uncstate --cpus 4-7 --state C6`。クロック上限は `sudo ./cpu-core-parking.sh freq --cpus 4-7 --max-mhz 1800`、上下限は `--min-mhz` / `--max-mhz` で指定。C-state は idle 時の候補制御で、CPU を state に固定しません。`-h`/`--help` で詳細を表示。
 - 依存: Linux sysfs、bash。状態変更には root 権限が必要です。
 - 注意: CPU 0 や、カーネルがホットプラグを許可していない CPU は停止できません。
 
