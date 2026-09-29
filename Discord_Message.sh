@@ -108,7 +108,11 @@ require_commands() {
     fi
 }
 
-require_commands curl grep sed xargs readlink
+json_encode() {
+    jq -Rsa .
+}
+
+require_commands curl grep sed xargs readlink jq
 
 # (メッセージの有無はメッセージ構築後にチェックするのじゃ)
 
@@ -175,24 +179,21 @@ HOST_NAME="${HOST_NAME//\"/\\\"}"
 # 各チャンク（メッセージ分割された一部）を送信する関数
 send_chunk() {
     local chunk_content="$1"
-
-    # メッセージ内の特殊文字をJSONエスケープするのじゃ
-    chunk_content="${chunk_content//\\/\\\\}"
-    chunk_content="${chunk_content//\"/\\\"}"
-    chunk_content="${chunk_content//$'\n'/\\n}"
-    chunk_content="${chunk_content//$'\r'/\\r}"
-    chunk_content="${chunk_content//$'\t'/\\t}"
+    local payload
+    payload=$(jq -cn --arg content "$chunk_content" --arg username "$HOST_NAME" '{content: $content, username: $username}')
 
     if [ "$DRY_RUN" = true ]; then
         echo "--- DRY RUN ---"
         echo "Webhook URL: $DISCORD_WEBHOOK_URL"
-        echo "Payload: {\"content\": \"$chunk_content\", \"username\": \"$HOST_NAME\"}"
+        printf 'Payload: {"content": %s, "username": %s}\n' \
+            "$(printf '%s' "$chunk_content" | json_encode)" \
+            "$(printf '%s' "$HOST_NAME" | json_encode)"
     else
         # curlコマンドでDiscordに送信じゃ
         curl \
             -X POST \
             -H "Content-Type: application/json" \
-            -d "{\"content\": \"$chunk_content\", \"username\": \"$HOST_NAME\"}" \
+            -d "$payload" \
             "$DISCORD_WEBHOOK_URL"
         
         # 分割送信の場合にレートリミットを回避するため、少しスリープを入れるのじゃ
