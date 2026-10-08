@@ -80,6 +80,15 @@ chmod +x *.sh
 - 依存: find、mv、bash。
 - 注意: 同名ファイルが存在する場合は、処理前に検出して何も変更せず終了します。
 
+### [quarantine-zero-byte-files.sh](quarantine-zero-byte-files.sh)
+
+- 内容: カレント以下の0Bの通常ファイルを、フォルダ構成を維持してカレント内の新規 `zero-byte-files-XXXXXX` フォルダへ退避。
+- 使い方: 整理したいディレクトリで `quarantine-zero-byte-files.sh` を実行して候補を確認し、`--execute` を付けて移動。候補がなければ退避フォルダは作成しません。
+- フォルダ指定: `quarantine-zero-byte-files.sh folder1 folder2`。ワイルドカードは `quarantine-zero-byte-files.sh 'album-*'` のように指定できます。指定省略時はカレント以下が対象です。退避先は常にカレント内で、カレント外のファイルは `_external/` 以下に絶対パスの階層で保存します。
+- `quarantine-zero-byte-files.sh *` のようにシェルで展開した指定も使えます。引数に含まれるファイルは読み飛ばし、フォルダだけを対象にします。一致する項目がない指定、または対象フォルダが1つもない場合はエラーになります。
+- 依存: bash、find、mktemp、mkdir、mv、rm（Linux の標準コマンド）。
+- 注意: 0B以外の破損判定は行いません。正常な空ファイルも対象になるため候補を確認してください。シンボリックリンクと、各階層の `zero-byte-files-*` と旧形式の `zero-byte-files.*` ディレクトリは除外します。元の空ディレクトリは削除しません。
+
 ### Demucs ワークフロー（推奨手順）
 
 1. 事前分割（長尺対策・安定化）
