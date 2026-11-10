@@ -2,7 +2,7 @@
 
 set -u
 
-usage() {
+show_help() {
     cat <<'EOF'
 Usage: Tailscale_Status-Loop.sh [-i seconds] [-o] [-d] [-h]
   -i, --interval     Refresh interval in seconds (1-3600; default: 1)
@@ -10,6 +10,7 @@ Usage: Tailscale_Status-Loop.sh [-i seconds] [-o] [-d] [-h]
   -d, --detail       Show last handshake / last seen
   -h, --help         Show this help
 
+Long ADDR values scroll horizontally within the existing column width.
 Requires tailscale and jq. Stop with Ctrl+C.
 EOF
 }
@@ -20,12 +21,12 @@ detail=false
 while (($#)); do
     case $1 in
         -i|--interval)
-            if (($# < 2)); then usage >&2; exit 2; fi
+            if (($# < 2)); then show_help >&2; exit 2; fi
             interval=$2; shift 2 ;;
         -o|--online-only) online_only=true; shift ;;
         -d|--detail) detail=true; shift ;;
-        -h|--help) usage; exit 0 ;;
-        *) usage >&2; exit 2 ;;
+        -h|--help) show_help; exit 0 ;;
+        *) show_help >&2; exit 2 ;;
     esac
 done
 if [[ ! $interval =~ ^[0-9]+$ ]] || ((10#$interval < 1 || 10#$interval > 3600)); then
@@ -42,6 +43,7 @@ done
 
 declare -A previous_rx previous_tx previous_rate previous_direction
 previous_time=0
+scroll_started_at_ms=$(date +%s%3N)
 
 format_bytes() {
     awk -v n="${1:-0}" 'BEGIN { split("B KB MB GB TB", unit); i=1; while (n>=1024 && i<5) { n/=1024; i++ } if (i==1) printf "%.0f B",n; else printf "%.2f %s",n,unit[i] }'
@@ -53,6 +55,34 @@ cell() {
     local value=$1 width=$2
     if ((${#value} > width)); then value="${value:0:width-1}…"; fi
     printf '%-*s ' "$width" "$value"
+}
+scrolling_address() {
+    local value=$1 width=$2 position=$3
+    if ((${#value} <= width || width <= 2)); then
+        cell "$value" "$width"
+        return
+    fi
+
+    local viewport_width=$((width - 2))
+    local max_offset=$((${#value} - viewport_width))
+    local hold_steps=4
+    local cycle_length=$((2 * max_offset + 2 * hold_steps))
+    local step=$((position % cycle_length))
+    local offset
+    if ((step < hold_steps)); then
+        offset=0
+    elif ((step < hold_steps + max_offset)); then
+        offset=$((step - hold_steps))
+    elif ((step < max_offset + 2 * hold_steps)); then
+        offset=$max_offset
+    else
+        offset=$((cycle_length - step))
+    fi
+
+    local left_marker=' ' right_marker=' '
+    if ((offset > 0)); then left_marker='‹'; fi
+    if ((offset < max_offset)); then right_marker='›'; fi
+    printf '%s%s%s ' "$left_marker" "${value:offset:viewport_width}" "$right_marker"
 }
 draw() {
     local line rows cols limit index
@@ -75,6 +105,7 @@ draw() {
 
 while :; do
     lines=()
+    scroll_position=$((($(date +%s%3N) - scroll_started_at_ms) / 500))
     if ! status=$(tailscale status --json 2>&1); then
         lines+=("ERROR: $status")
         previous_rx=(); previous_tx=(); previous_rate=(); previous_direction=(); previous_time=0
@@ -138,7 +169,7 @@ while :; do
             current_direction[$key]=$direction
         fi
         current_rx[$key]=$rx; current_tx[$key]=$tx
-        row="$(cell "$state" 7)$(cell "$path" 12)$(cell "$address" 22)"
+        row="$(cell "$state" 7)$(cell "$path" 12)$(scrolling_address "$address" 22 "$scroll_position")"
         if $detail; then row+="$(cell "$name" 20)"; else row+="$(cell "$name" 22)"; fi
         row+="$(cell "$os" 7)$(cell "$ip" 15)$(cell "$rate" 13)$(cell "$(format_bytes "$rx")" 11)$(cell "$(format_bytes "$tx")" 11)"
         if $detail; then row+="$(cell "$last" 16)"; fi
